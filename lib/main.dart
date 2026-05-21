@@ -319,6 +319,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
 
   static const _properties = [
     PropertyListing(
+      id: 'avelengo-rental',
       title: 'Entire rental unit in Avelengo',
       location: '305 Pomona Ave, Coronado, CA. 92118',
       price: r'$2,500,000',
@@ -328,6 +329,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       tagColor: Color(0xFFE46773),
     ),
     PropertyListing(
+      id: 'coronado-family-house',
       title: 'Single family house in Coronado',
       location: '305 Pomona Ave, Coronado, CA. 92118',
       price: r'$3,600',
@@ -337,6 +339,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       tagColor: Color(0xFF36C878),
     ),
     PropertyListing(
+      id: 'skyline-apartment',
       title: 'Skyline Apartment near Expressway',
       location: 'Noida Sector 150, Uttar Pradesh',
       price: r'$920,000',
@@ -347,8 +350,8 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     ),
   ];
 
-  void _openDetails() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PropertyDetailsScreen()));
+  void _openDetails(PropertyListing property) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => PropertyDetailsScreen(property: property)));
   }
 
   @override
@@ -367,12 +370,12 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         const SizedBox(height: 14),
         if (_isCardView) ...[
           for (final property in _properties) ...[
-            _PropertyFeedCard(property: property, onTap: _openDetails),
+            _PropertyFeedCard(property: property, onTap: () => _openDetails(property)),
             if (property != _properties.last) const SizedBox(height: 12),
           ],
         ] else ...[
           for (final property in _properties) ...[
-            _PropertyListCard(property: property, onTap: _openDetails),
+            _PropertyListCard(property: property, onTap: () => _openDetails(property)),
             if (property != _properties.last) const SizedBox(height: 12),
           ],
         ],
@@ -383,6 +386,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
 
 class PropertyListing {
   const PropertyListing({
+    required this.id,
     required this.title,
     required this.location,
     required this.price,
@@ -392,6 +396,7 @@ class PropertyListing {
     required this.tagColor,
   });
 
+  final String id;
   final String title;
   final String location;
   final String price;
@@ -399,6 +404,8 @@ class PropertyListing {
   final String status;
   final String image;
   final Color tagColor;
+
+  String get heroTag => 'property-image-$id';
 }
 
 class FollowUpsScreen extends StatelessWidget {
@@ -712,12 +719,15 @@ class _PropertyListCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                property.image,
-                width: 112,
-                height: 104,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(width: 112, height: 104, color: AppColors.line),
+              child: Hero(
+                tag: property.heroTag,
+                child: Image.network(
+                  property.image,
+                  width: 112,
+                  height: 104,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(width: 112, height: 104, color: AppColors.line),
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -844,10 +854,13 @@ class _PropertyFeedCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      property.image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                    Hero(
+                      tag: property.heroTag,
+                      child: Image.network(
+                        property.image,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                      ),
                     ),
                     Positioned(
                       left: 13,
@@ -1190,10 +1203,20 @@ class _SmallStatusPill extends StatelessWidget {
 }
 
 class PropertyDetailsScreen extends StatelessWidget {
-  const PropertyDetailsScreen({super.key});
+  const PropertyDetailsScreen({required this.property, super.key});
 
-  static const _heroImage =
-      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90';
+  final PropertyListing property;
+
+  static const fallbackProperty = PropertyListing(
+    id: 'fallback-modern-house',
+    title: 'Modern Simple House',
+    location: '2510 S Congress Ave, TX 78704',
+    price: r'$864,000',
+    oldPrice: r'$910,000',
+    status: 'Sale',
+    image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90',
+    tagColor: AppColors.green,
+  );
 
   static const _planImages = [
     'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=500&q=80',
@@ -1212,18 +1235,18 @@ class PropertyDetailsScreen extends StatelessWidget {
             Positioned.fill(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 96),
-                children: const [
-                  _ScreenHeader(),
-                  SizedBox(height: 28),
-                  _HeroGallery(),
-                  SizedBox(height: 12),
-                  _ThumbnailStrip(),
-                  SizedBox(height: 12),
-                  _SpecsCard(),
-                  SizedBox(height: 12),
-                  _DetailsCard(),
-                  SizedBox(height: 12),
-                  _DescriptionCard(),
+                children: [
+                  const _ScreenHeader(),
+                  const SizedBox(height: 28),
+                  _HeroGallery(property: property),
+                  const SizedBox(height: 12),
+                  const _ThumbnailStrip(),
+                  const SizedBox(height: 12),
+                  const _SpecsCard(),
+                  const SizedBox(height: 12),
+                  _DetailsCard(property: property),
+                  const SizedBox(height: 12),
+                  _DescriptionCard(property: property),
                 ],
               ),
             ),
@@ -1299,7 +1322,9 @@ class _CircleIconButton extends StatelessWidget {
 }
 
 class _HeroGallery extends StatelessWidget {
-  const _HeroGallery();
+  const _HeroGallery({required this.property});
+
+  final PropertyListing property;
 
   @override
   Widget build(BuildContext context) {
@@ -1310,10 +1335,13 @@ class _HeroGallery extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              PropertyDetailsScreen._heroImage,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+            Hero(
+              tag: property.heroTag,
+              child: Image.network(
+                property.image,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+              ),
             ),
             Positioned(
               top: 0,
@@ -1330,10 +1358,10 @@ class _HeroGallery extends StatelessWidget {
                 ),
               ),
             ),
-            const Positioned(
+            Positioned(
               left: 8,
               top: 8,
-              child: _Pill(text: 'Separate Hous', background: AppColors.ink, color: Colors.white),
+              child: _Pill(text: property.status, background: AppColors.ink, color: Colors.white),
             ),
             const Positioned(
               right: 8,
@@ -1485,25 +1513,27 @@ class _SpecItem extends StatelessWidget {
 }
 
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard();
+  const _DetailsCard({required this.property});
+
+  final PropertyListing property;
 
   @override
   Widget build(BuildContext context) {
-    const rows = [
-      _DetailRow(icon: HugeIcons.strokeRoundedTag02, label: 'Request Type', value: 'Sale'),
-      _DetailRow(icon: HugeIcons.strokeRoundedCalendar03, label: 'Year Build', value: '2016'),
-      _DetailRow(icon: HugeIcons.strokeRoundedBriefcase02, label: 'Account', value: 'Serenity Haven'),
-      _DetailRow(icon: HugeIcons.strokeRoundedUser02, label: 'Contacts', value: 'Frederick Graham'),
-      _DetailRow(icon: HugeIcons.strokeRoundedMaps, label: 'Location', value: 'South Austin'),
-      _DetailRow(icon: HugeIcons.strokeRoundedLocation01, label: 'Address', value: '2510 S Congress Ave, TX 78704'),
+    final rows = [
+      _DetailRow(icon: HugeIcons.strokeRoundedTag02, label: 'Request Type', value: property.status),
+      const _DetailRow(icon: HugeIcons.strokeRoundedCalendar03, label: 'Year Build', value: '2016'),
+      _DetailRow(icon: HugeIcons.strokeRoundedBriefcase02, label: 'Account', value: property.title),
+      const _DetailRow(icon: HugeIcons.strokeRoundedUser02, label: 'Contacts', value: 'Frederick Graham'),
+      _DetailRow(icon: HugeIcons.strokeRoundedMaps, label: 'Location', value: property.location.split(',').first),
+      _DetailRow(icon: HugeIcons.strokeRoundedLocation01, label: 'Address', value: property.location),
     ];
 
-    return const _GlassCard(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 18),
+    return _GlassCard(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       child: Column(
         children: [
-          _CardTitle(title: 'Details'),
-          SizedBox(height: 22),
+          const _CardTitle(title: 'Details'),
+          const SizedBox(height: 22),
           ...rows,
         ],
       ),
@@ -1579,20 +1609,22 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _DescriptionCard extends StatelessWidget {
-  const _DescriptionCard();
+  const _DescriptionCard({required this.property});
+
+  final PropertyListing property;
 
   @override
   Widget build(BuildContext context) {
-    return const _GlassCard(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 78),
+    return _GlassCard(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 78),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _CardTitle(title: 'Description'),
-          SizedBox(height: 16),
+          const _CardTitle(title: 'Description'),
+          const SizedBox(height: 16),
           Text(
-            'Minimal contemporary villa with clean elevations, wide glazing, warm wood accents and a quiet residential setting. Ideal for high-intent buyers looking for a ready-to-move premium home.',
-            style: TextStyle(fontSize: 15.5, height: 1.55, color: AppColors.muted, letterSpacing: -0.25),
+            '${property.title} is listed at ${property.price} in ${property.location}. This demo record is now shared across the card view, list view, and details page so the selected inventory item stays consistent.',
+            style: const TextStyle(fontSize: 15.5, height: 1.55, color: AppColors.muted, letterSpacing: -0.25),
           ),
         ],
       ),
