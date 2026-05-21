@@ -354,12 +354,8 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         pageBuilder: (context, animation, secondaryAnimation) => PropertyDetailsScreen(property: property),
-        transitionDuration: const Duration(milliseconds: 260),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-          return FadeTransition(opacity: curvedAnimation, child: child);
-        },
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
       ),
     );
   }
@@ -1218,10 +1214,13 @@ class _SmallStatusPill extends StatelessWidget {
   }
 }
 
-class PropertyDetailsScreen extends StatelessWidget {
+class PropertyDetailsScreen extends StatefulWidget {
   const PropertyDetailsScreen({required this.property, super.key});
 
   final PropertyListing property;
+
+  @override
+  State<PropertyDetailsScreen> createState() => _PropertyDetailsScreenState();
 
   static const fallbackProperty = PropertyListing(
     id: 'fallback-modern-house',
@@ -1234,11 +1233,25 @@ class PropertyDetailsScreen extends StatelessWidget {
     tagColor: AppColors.green,
   );
 
-  static const _planImages = [
+  static const planImages = [
     'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=500&q=80',
     'https://images.unsplash.com/photo-1503389152951-9f343605f61e?auto=format&fit=crop&w=500&q=80',
     'https://images.unsplash.com/photo-1604014237800-1c9102c219da?auto=format&fit=crop&w=500&q=80',
   ];
+}
+
+class _PropertyDetailsScreenState extends State<PropertyDetailsScreen> {
+  bool _showContent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(milliseconds: 170), () {
+      if (mounted) {
+        setState(() => _showContent = true);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1252,25 +1265,25 @@ class PropertyDetailsScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 96),
                 children: [
-                  const _ScreenHeader(),
+                  _DetailFadeIn(visible: _showContent, child: const _ScreenHeader()),
                   const SizedBox(height: 28),
-                  _HeroGallery(property: property),
+                  _HeroGallery(property: widget.property),
                   const SizedBox(height: 12),
-                  const _ThumbnailStrip(),
+                  _DetailFadeIn(visible: _showContent, child: const _ThumbnailStrip()),
                   const SizedBox(height: 12),
-                  const _SpecsCard(),
+                  _DetailFadeIn(visible: _showContent, child: const _SpecsCard()),
                   const SizedBox(height: 12),
-                  _DetailsCard(property: property),
+                  _DetailFadeIn(visible: _showContent, child: _DetailsCard(property: widget.property)),
                   const SizedBox(height: 12),
-                  _DescriptionCard(property: property),
+                  _DetailFadeIn(visible: _showContent, child: _DescriptionCard(property: widget.property)),
                 ],
               ),
             ),
-            const Positioned(
+            Positioned(
               left: 18,
               right: 18,
               bottom: 12,
-              child: _BottomActions(),
+              child: _DetailFadeIn(visible: _showContent, child: const _BottomActions()),
             ),
           ],
         ),
@@ -1306,6 +1319,28 @@ class _ScreenHeader extends StatelessWidget {
           child: const _CircleIconButton(icon: HugeIcons.strokeRoundedShare08),
         ),
       ],
+    );
+  }
+}
+
+class _DetailFadeIn extends StatelessWidget {
+  const _DetailFadeIn({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : const Offset(0, 0.025),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: child,
+      ),
     );
   }
 }
@@ -1424,9 +1459,9 @@ class _ThumbnailStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        for (final image in PropertyDetailsScreen._planImages) ...[
+        for (final image in PropertyDetailsScreen.planImages) ...[
           Expanded(child: _PlanThumb(image: image)),
-          if (image != PropertyDetailsScreen._planImages.last) const SizedBox(width: 8),
+          if (image != PropertyDetailsScreen.planImages.last) const SizedBox(width: 8),
         ],
       ],
     );
