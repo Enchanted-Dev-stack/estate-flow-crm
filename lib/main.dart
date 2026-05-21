@@ -351,7 +351,17 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   ];
 
   void _openDetails(PropertyListing property) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => PropertyDetailsScreen(property: property)));
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) => PropertyDetailsScreen(property: property),
+        transitionDuration: const Duration(milliseconds: 260),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+          return FadeTransition(opacity: curvedAnimation, child: child);
+        },
+      ),
+    );
   }
 
   @override
@@ -721,12 +731,15 @@ class _PropertyListCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               child: Hero(
                 tag: property.heroTag,
-                child: Image.network(
-                  property.image,
-                  width: 112,
-                  height: 104,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(width: 112, height: 104, color: AppColors.line),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.network(
+                    property.image,
+                    width: 112,
+                    height: 104,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(width: 112, height: 104, color: AppColors.line),
+                  ),
                 ),
               ),
             ),
@@ -856,10 +869,13 @@ class _PropertyFeedCard extends StatelessWidget {
                   children: [
                     Hero(
                       tag: property.heroTag,
-                      child: Image.network(
-                        property.image,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.network(
+                          property.image,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                        ),
                       ),
                     ),
                     Positioned(
@@ -1337,10 +1353,13 @@ class _HeroGallery extends StatelessWidget {
           children: [
             Hero(
               tag: property.heroTag,
-              child: Image.network(
-                property.image,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(23),
+                child: Image.network(
+                  property.image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                ),
               ),
             ),
             Positioned(
