@@ -144,37 +144,56 @@ class _BottomNavBar extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => onChanged(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: selectedIndex == index ? Colors.black : Colors.transparent,
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      HugeIcon(
-                        icon: items[index].icon,
-                        size: 22,
-                        color: selectedIndex == index ? Colors.white : AppColors.muted,
-                        strokeWidth: 1.7,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        selectedIndex == index ? items[index].label : '',
-                        maxLines: 1,
-                        overflow: TextOverflow.visible,
-                        style: const TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  tween: Tween<double>(begin: 0, end: selectedIndex == index ? 1 : 0),
+                  builder: (context, value, child) {
+                    final isSelected = selectedIndex == index;
+                    return Center(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        width: isSelected ? 64 : 66,
+                        height: isSelected ? 54 : 54,
+                        decoration: BoxDecoration(
+                          color: Color.lerp(Colors.transparent, Colors.black, value),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            HugeIcon(
+                              icon: items[index].icon,
+                              size: 22 + (6 * value),
+                              color: Color.lerp(AppColors.muted, Colors.white, value),
+                              strokeWidth: 1.7,
+                            ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 160),
+                              curve: Curves.easeOutCubic,
+                              child: isSelected
+                                  ? const SizedBox.shrink()
+                                  : Padding(
+                                      padding: const EdgeInsets.only(top: 3),
+                                      child: Text(
+                                        items[index].label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.muted,
+                                          letterSpacing: -0.2,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),

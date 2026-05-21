@@ -8,6 +8,5 @@ void main() {
 
     expect(find.text('EstateFlow'), findsOneWidget);
     expect(find.text('Pipeline value across 46 active opportunities'), findsOneWidget);
-    expect(find.text('Dashboard'), findsOneWidget);
   });
 }
