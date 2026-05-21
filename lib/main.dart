@@ -317,6 +317,36 @@ class PropertiesScreen extends StatefulWidget {
 class _PropertiesScreenState extends State<PropertiesScreen> {
   bool _isCardView = true;
 
+  static const _properties = [
+    PropertyListing(
+      title: 'Entire rental unit in Avelengo',
+      location: '305 Pomona Ave, Coronado, CA. 92118',
+      price: r'$2,500,000',
+      oldPrice: r'$2,550,000',
+      status: 'Sale',
+      image: 'https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1000&q=90',
+      tagColor: Color(0xFFE46773),
+    ),
+    PropertyListing(
+      title: 'Single family house in Coronado',
+      location: '305 Pomona Ave, Coronado, CA. 92118',
+      price: r'$3,600',
+      oldPrice: r'$3,950',
+      status: 'Rental',
+      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=90',
+      tagColor: Color(0xFF36C878),
+    ),
+    PropertyListing(
+      title: 'Skyline Apartment near Expressway',
+      location: 'Noida Sector 150, Uttar Pradesh',
+      price: r'$920,000',
+      oldPrice: r'$960,000',
+      status: 'Ready',
+      image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=90',
+      tagColor: AppColors.green,
+    ),
+  ];
+
   void _openDetails() {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PropertyDetailsScreen()));
   }
@@ -336,58 +366,39 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         ),
         const SizedBox(height: 14),
         if (_isCardView) ...[
-          _PropertyFeedCard(
-            title: 'Entire rental unit in Avelengo',
-            location: '305 Pomona Ave, Coronado, CA. 92118',
-            price: r'$2,500,000',
-            oldPrice: r'$2,550,000',
-            status: 'Sale',
-            image: 'https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1000&q=90',
-            tagColor: const Color(0xFFE46773),
-            onTap: _openDetails,
-          ),
-          const SizedBox(height: 12),
-          _PropertyFeedCard(
-            title: 'Single family house in Coronado',
-            location: '305 Pomona Ave, Coronado, CA. 92118',
-            price: r'$3,600',
-            oldPrice: r'$3,950',
-            status: 'Rental',
-            image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=90',
-            tagColor: const Color(0xFF36C878),
-            onTap: _openDetails,
-          ),
+          for (final property in _properties) ...[
+            _PropertyFeedCard(property: property, onTap: _openDetails),
+            if (property != _properties.last) const SizedBox(height: 12),
+          ],
         ] else ...[
-          _PropertyListCard(
-            title: 'Modern Simple House',
-            location: 'South Austin',
-            price: '₹1.42 Cr',
-            status: 'Available',
-            image: PropertyDetailsScreen._heroImage,
-            onTap: _openDetails,
-          ),
-          const SizedBox(height: 12),
-          _PropertyListCard(
-            title: 'Serenity Haven Villa',
-            location: 'Gurgaon Golf Course',
-            price: '₹2.85 Cr',
-            status: 'Hold',
-            image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=90',
-            onTap: _openDetails,
-          ),
-          const SizedBox(height: 12),
-          _PropertyListCard(
-            title: 'Skyline Apartment',
-            location: 'Noida Sector 150',
-            price: '₹92L',
-            status: 'Ready',
-            image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=900&q=90',
-            onTap: _openDetails,
-          ),
+          for (final property in _properties) ...[
+            _PropertyListCard(property: property, onTap: _openDetails),
+            if (property != _properties.last) const SizedBox(height: 12),
+          ],
         ],
       ],
     );
   }
+}
+
+class PropertyListing {
+  const PropertyListing({
+    required this.title,
+    required this.location,
+    required this.price,
+    required this.oldPrice,
+    required this.status,
+    required this.image,
+    required this.tagColor,
+  });
+
+  final String title;
+  final String location;
+  final String price;
+  final String oldPrice;
+  final String status;
+  final String image;
+  final Color tagColor;
 }
 
 class FollowUpsScreen extends StatelessWidget {
@@ -686,13 +697,9 @@ class _LeadCard extends StatelessWidget {
 }
 
 class _PropertyListCard extends StatelessWidget {
-  const _PropertyListCard({required this.title, required this.location, required this.price, required this.status, required this.image, required this.onTap});
+  const _PropertyListCard({required this.property, required this.onTap});
 
-  final String title;
-  final String location;
-  final String price;
-  final String status;
-  final String image;
+  final PropertyListing property;
   final VoidCallback onTap;
 
   @override
@@ -706,7 +713,7 @@ class _PropertyListCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: Image.network(
-                image,
+                property.image,
                 width: 112,
                 height: 104,
                 fit: BoxFit.cover,
@@ -718,13 +725,13 @@ class _PropertyListCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SmallStatusPill(text: status),
+                  _SmallStatusPill(text: property.status),
                   const SizedBox(height: 10),
-                  Text(title, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.7)),
+                  Text(property.title, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.7)),
                   const SizedBox(height: 4),
-                  Text(location, style: const TextStyle(fontSize: 13.5, color: AppColors.muted)),
+                  Text(property.location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, color: AppColors.muted)),
                   const SizedBox(height: 10),
-                  Text(price, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.6)),
+                  Text(property.price, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.6)),
                 ],
               ),
             ),
@@ -806,23 +813,11 @@ class _ViewToggleButton extends StatelessWidget {
 
 class _PropertyFeedCard extends StatelessWidget {
   const _PropertyFeedCard({
-    required this.title,
-    required this.location,
-    required this.price,
-    required this.oldPrice,
-    required this.status,
-    required this.image,
-    required this.tagColor,
+    required this.property,
     required this.onTap,
   });
 
-  final String title;
-  final String location;
-  final String price;
-  final String oldPrice;
-  final String status;
-  final String image;
-  final Color tagColor;
+  final PropertyListing property;
   final VoidCallback onTap;
 
   @override
@@ -850,7 +845,7 @@ class _PropertyFeedCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     Image.network(
-                      image,
+                      property.image,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
                     ),
@@ -859,8 +854,8 @@ class _PropertyFeedCard extends StatelessWidget {
                       top: 12,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(color: tagColor, borderRadius: BorderRadius.circular(16)),
-                        child: Text(status, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                        decoration: BoxDecoration(color: property.tagColor, borderRadius: BorderRadius.circular(16)),
+                        child: Text(property.status, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                       ),
                     ),
                     Positioned(
@@ -899,7 +894,7 @@ class _PropertyFeedCard extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    price,
+                                    property.price,
                                     style: const TextStyle(
                                       fontFamily: AppFonts.cabinet,
                                       fontSize: 25,
@@ -912,7 +907,7 @@ class _PropertyFeedCard extends StatelessWidget {
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: Text(
-                                      '/ $oldPrice',
+                                      '/ ${property.oldPrice}',
                                       style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.72), decoration: TextDecoration.lineThrough),
                                     ),
                                   ),
@@ -930,13 +925,13 @@ class _PropertyFeedCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 2),
               child: Text(
-                title,
+                property.title,
                 style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 21, fontWeight: FontWeight.w700, color: AppColors.ink, letterSpacing: -0.7),
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(location, style: const TextStyle(fontSize: 13.5, color: AppColors.muted, letterSpacing: -0.2)),
+              child: Text(property.location, style: const TextStyle(fontSize: 13.5, color: AppColors.muted, letterSpacing: -0.2)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
