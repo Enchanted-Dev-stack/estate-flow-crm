@@ -906,9 +906,23 @@ class _PropertyFeedCard extends StatelessWidget {
                                   const SizedBox(width: 5),
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text(
-                                      '/ ${property.oldPrice}',
-                                      style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.72), decoration: TextDecoration.lineThrough),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '/ ',
+                                          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.72)),
+                                        ),
+                                        Text(
+                                          property.oldPrice,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white.withValues(alpha: 0.72),
+                                            decoration: TextDecoration.lineThrough,
+                                            decorationColor: Colors.white,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
