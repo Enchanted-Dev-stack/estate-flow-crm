@@ -324,7 +324,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       price: r'$2,500,000',
       oldPrice: r'$2,550,000',
       status: 'Sale',
-      image: 'https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=1000&q=90',
+      image: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=90',
       tagColor: Color(0xFFE46773),
     ),
     PropertyListing(
