@@ -1520,7 +1520,7 @@ class _CircleIconButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.panel.withValues(alpha: 0.62),
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.88), width: 1.1),
         ),
         child: Center(
           child: HugeIcon(icon: icon, size: 24, color: AppColors.ink, strokeWidth: 1.7),
