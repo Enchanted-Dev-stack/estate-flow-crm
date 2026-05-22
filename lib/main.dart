@@ -67,13 +67,42 @@ class CrmShell extends StatefulWidget {
 
 class _CrmShellState extends State<CrmShell> {
   int _selectedIndex = 0;
+  late List<PropertyListing> _properties = List.of(_initialProperties);
 
-  static const _screens = [
-    DashboardScreen(),
-    LeadsScreen(),
-    PropertiesScreen(),
-    FollowUpsScreen(),
-    MoreScreen(),
+  static const _initialProperties = [
+    PropertyListing(
+      id: 'avelengo-rental',
+      title: 'Entire rental unit in Avelengo',
+      location: '305 Pomona Ave, Coronado, CA. 92118',
+      price: r'$2,500,000',
+      oldPrice: r'$2,550,000',
+      status: 'Sale',
+      image:
+          'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=90',
+      tagColor: Color(0xFFE46773),
+    ),
+    PropertyListing(
+      id: 'coronado-family-house',
+      title: 'Single family house in Coronado',
+      location: '305 Pomona Ave, Coronado, CA. 92118',
+      price: r'$3,600',
+      oldPrice: r'$3,950',
+      status: 'Rental',
+      image:
+          'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=90',
+      tagColor: Color(0xFF36C878),
+    ),
+    PropertyListing(
+      id: 'skyline-apartment',
+      title: 'Skyline Apartment near Expressway',
+      location: 'Noida Sector 150, Uttar Pradesh',
+      price: r'$920,000',
+      oldPrice: r'$960,000',
+      status: 'Ready',
+      image:
+          'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=90',
+      tagColor: AppColors.green,
+    ),
   ];
 
   static const _items = [
@@ -84,15 +113,41 @@ class _CrmShellState extends State<CrmShell> {
     _NavItem('More', HugeIcons.strokeRoundedMenuCircle),
   ];
 
+  Future<void> _openAddProperty() async {
+    final property = await Navigator.of(context).push<PropertyListing>(
+      MaterialPageRoute<PropertyListing>(
+        builder: (_) => const AddPropertyScreen(),
+      ),
+    );
+
+    if (property == null || !mounted) return;
+
+    setState(() {
+      _properties = [property, ..._properties];
+      _selectedIndex = 2;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      DashboardScreen(onAddProperty: _openAddProperty),
+      LeadsScreen(onAddProperty: _openAddProperty),
+      PropertiesScreen(
+        properties: _properties,
+        onAddProperty: _openAddProperty,
+      ),
+      FollowUpsScreen(onAddProperty: _openAddProperty),
+      MoreScreen(onAddProperty: _openAddProperty),
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
         bottom: false,
         child: Stack(
           children: [
-            Positioned.fill(child: _screens[_selectedIndex]),
+            Positioned.fill(child: screens[_selectedIndex]),
             Positioned(
               bottom: 12,
               left: 0,
@@ -120,7 +175,11 @@ class _NavItem {
 }
 
 class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar({required this.items, required this.selectedIndex, required this.onChanged});
+  const _BottomNavBar({
+    required this.items,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
 
   final List<_NavItem> items;
   final int selectedIndex;
@@ -139,7 +198,11 @@ class _BottomNavBar extends StatelessWidget {
             color: const Color(0xFF3F4A49).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(33),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: 0.26), blurRadius: 30, offset: const Offset(0, 14)),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.26),
+                blurRadius: 30,
+                offset: const Offset(0, 14),
+              ),
             ],
           ),
           child: Row(
@@ -157,14 +220,18 @@ class _BottomNavBar extends StatelessWidget {
                         width: 54,
                         height: 54,
                         decoration: BoxDecoration(
-                          color: selectedIndex == index ? Colors.white : const Color(0xFF6D7775).withValues(alpha: 0.72),
+                          color: selectedIndex == index
+                              ? Colors.white
+                              : const Color(0xFF6D7775).withValues(alpha: 0.72),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
                           child: HugeIcon(
                             icon: items[index].icon,
                             size: 22,
-                            color: selectedIndex == index ? AppColors.ink : const Color(0xFFDDE2DF),
+                            color: selectedIndex == index
+                                ? AppColors.ink
+                                : const Color(0xFFDDE2DF),
                             strokeWidth: 1.7,
                           ),
                         ),
@@ -183,20 +250,35 @@ class _BottomNavBar extends StatelessWidget {
 }
 
 class AppScreen extends StatelessWidget {
-  const AppScreen({required this.title, required this.subtitle, required this.children, this.actionIcon, this.onAction, super.key});
+  const AppScreen({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+    this.actionIcon,
+    this.onAction,
+    this.onAddProperty,
+    super.key,
+  });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
   final List<List<dynamic>>? actionIcon;
   final VoidCallback? onAction;
+  final VoidCallback? onAddProperty;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 104),
       children: [
-        AppHeader(title: title, subtitle: subtitle, actionIcon: actionIcon, onAction: onAction),
+        AppHeader(
+          title: title,
+          subtitle: subtitle,
+          actionIcon: actionIcon,
+          onAction: onAction,
+          onAddProperty: onAddProperty,
+        ),
         const SizedBox(height: 22),
         ...children,
       ],
@@ -205,12 +287,20 @@ class AppScreen extends StatelessWidget {
 }
 
 class AppHeader extends StatelessWidget {
-  const AppHeader({required this.title, required this.subtitle, this.actionIcon, this.onAction, super.key});
+  const AppHeader({
+    required this.title,
+    required this.subtitle,
+    this.actionIcon,
+    this.onAction,
+    this.onAddProperty,
+    super.key,
+  });
 
   final String title;
   final String subtitle;
   final List<List<dynamic>>? actionIcon;
   final VoidCallback? onAction;
+  final VoidCallback? onAddProperty;
 
   @override
   Widget build(BuildContext context) {
@@ -233,28 +323,41 @@ class AppHeader extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(fontSize: 15, color: AppColors.muted, letterSpacing: -0.2),
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: AppColors.muted,
+                  letterSpacing: -0.2,
+                ),
               ),
             ],
           ),
         ),
         if (actionIcon == HugeIcons.strokeRoundedAdd01 && onAction == null)
-          const _MorphingAddButton()
+          _MorphingAddButton(
+            key: const ValueKey('quick-create-button'),
+            onAddProperty: onAddProperty,
+          )
         else
-          _CircleIconButton(icon: actionIcon ?? HugeIcons.strokeRoundedNotification01, onTap: onAction),
+          _CircleIconButton(
+            icon: actionIcon ?? HugeIcons.strokeRoundedNotification01,
+            onTap: onAction,
+          ),
       ],
     );
   }
 }
 
 class _MorphingAddButton extends StatefulWidget {
-  const _MorphingAddButton();
+  const _MorphingAddButton({this.onAddProperty, super.key});
+
+  final VoidCallback? onAddProperty;
 
   @override
   State<_MorphingAddButton> createState() => _MorphingAddButtonState();
 }
 
-class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTickerProviderStateMixin {
+class _MorphingAddButtonState extends State<_MorphingAddButton>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   OverlayEntry? _overlayEntry;
   Rect _buttonRect = Rect.zero;
@@ -263,7 +366,10 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 360));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    );
   }
 
   @override
@@ -295,6 +401,12 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
     if (mounted) {
       setState(() => _isMenuOpen = false);
     }
+  }
+
+  Future<void> _openAddProperty() async {
+    await _closeMenu();
+    if (!mounted) return;
+    widget.onAddProperty?.call();
   }
 
   Widget _buildOverlay(BuildContext context) {
@@ -333,28 +445,47 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(radius),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 8 * progress, sigmaY: 8 * progress),
+                    filter: ImageFilter.blur(
+                      sigmaX: 8 * progress,
+                      sigmaY: 8 * progress,
+                    ),
                     child: Container(
                       decoration: BoxDecoration(
                         color: AppColors.panel.withValues(alpha: 0.94),
                         borderRadius: BorderRadius.circular(radius),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.72), width: 1.1),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          width: 1.1,
+                        ),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.16 * progress), blurRadius: 28, offset: const Offset(0, 14)),
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: 0.16 * progress,
+                            ),
+                            blurRadius: 28,
+                            offset: const Offset(0, 14),
+                          ),
                         ],
                       ),
                       child: progress < 0.44
                           ? Center(
                               child: Transform.rotate(
                                 angle: progress * 0.7,
-                                child: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 25, color: AppColors.ink, strokeWidth: 1.8),
+                                child: const HugeIcon(
+                                  icon: HugeIcons.strokeRoundedAdd01,
+                                  size: 25,
+                                  color: AppColors.ink,
+                                  strokeWidth: 1.8,
+                                ),
                               ),
                             )
                           : Opacity(
                               opacity: contentOpacity,
-                              child: const SingleChildScrollView(
+                              child: SingleChildScrollView(
                                 physics: NeverScrollableScrollPhysics(),
-                                child: _QuickCreateMenuContent(),
+                                child: _QuickCreateMenuContent(
+                                  onAddProperty: _openAddProperty,
+                                ),
                               ),
                             ),
                     ),
@@ -372,13 +503,18 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
   Widget build(BuildContext context) {
     return Opacity(
       opacity: _isMenuOpen ? 0 : 1,
-      child: _CircleIconButton(icon: HugeIcons.strokeRoundedAdd01, onTap: _toggleMenu),
+      child: _CircleIconButton(
+        icon: HugeIcons.strokeRoundedAdd01,
+        onTap: _toggleMenu,
+      ),
     );
   }
 }
 
 class _QuickCreateMenuContent extends StatelessWidget {
-  const _QuickCreateMenuContent();
+  const _QuickCreateMenuContent({required this.onAddProperty});
+
+  final VoidCallback onAddProperty;
 
   @override
   Widget build(BuildContext context) {
@@ -386,8 +522,8 @@ class _QuickCreateMenuContent extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
+        children: [
+          const Text(
             'Quick Create',
             style: TextStyle(
               fontFamily: AppFonts.cabinet,
@@ -397,13 +533,33 @@ class _QuickCreateMenuContent extends StatelessWidget {
               letterSpacing: -0.8,
             ),
           ),
-          SizedBox(height: 4),
-          Text('Add CRM records without leaving this screen.', style: TextStyle(fontSize: 13.5, color: AppColors.muted)),
-          SizedBox(height: 14),
-          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedRealEstate01, title: 'Add Property', subtitle: 'Create inventory listing'),
-          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedUserAdd01, title: 'Add Lead', subtitle: 'Capture buyer details'),
-          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedCalendarAdd01, title: 'Add Follow-up', subtitle: 'Schedule next action'),
-          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedDatabaseImport, title: 'Import Lead', subtitle: 'Webhook or spreadsheet'),
+          const SizedBox(height: 4),
+          const Text(
+            'Add CRM records without leaving this screen.',
+            style: TextStyle(fontSize: 13.5, color: AppColors.muted),
+          ),
+          const SizedBox(height: 14),
+          _QuickCreateMenuItem(
+            icon: HugeIcons.strokeRoundedRealEstate01,
+            title: 'Add Property',
+            subtitle: 'Create inventory listing',
+            onTap: onAddProperty,
+          ),
+          const _QuickCreateMenuItem(
+            icon: HugeIcons.strokeRoundedUserAdd01,
+            title: 'Add Lead',
+            subtitle: 'Capture buyer details',
+          ),
+          const _QuickCreateMenuItem(
+            icon: HugeIcons.strokeRoundedCalendarAdd01,
+            title: 'Add Follow-up',
+            subtitle: 'Schedule next action',
+          ),
+          const _QuickCreateMenuItem(
+            icon: HugeIcons.strokeRoundedDatabaseImport,
+            title: 'Import Lead',
+            subtitle: 'Webhook or spreadsheet',
+          ),
         ],
       ),
     );
@@ -411,81 +567,871 @@ class _QuickCreateMenuContent extends StatelessWidget {
 }
 
 class _QuickCreateMenuItem extends StatelessWidget {
-  const _QuickCreateMenuItem({required this.icon, required this.title, required this.subtitle});
+  const _QuickCreateMenuItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
 
   final List<List<dynamic>> icon;
   final String title;
   final String subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
-            child: Center(child: HugeIcon(icon: icon, size: 20, color: AppColors.ink, strokeWidth: 1.7)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: AppColors.ink, letterSpacing: -0.3)),
-                const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(fontSize: 12.5, color: AppColors.muted, letterSpacing: -0.1)),
-              ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: AppColors.mint,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: HugeIcon(
+                  icon: icon,
+                  size: 20,
+                  color: AppColors.ink,
+                  strokeWidth: 1.7,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.muted,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowRight02,
+              size: 18,
+              color: AppColors.muted,
+              strokeWidth: 1.7,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AddPropertyScreen extends StatefulWidget {
+  const AddPropertyScreen({super.key});
+
+  @override
+  State<AddPropertyScreen> createState() => _AddPropertyScreenState();
+}
+
+class _AddPropertyScreenState extends State<AddPropertyScreen> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _priceController;
+  late final TextEditingController _priceUnitController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _localityController;
+  late final TextEditingController _addressController;
+  late final TextEditingController _landmarkController;
+  late final TextEditingController _sizeController;
+  late final TextEditingController _floorController;
+  late final TextEditingController _bedroomController;
+  late final TextEditingController _bathroomController;
+  late final TextEditingController _notesController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: 'Modern Simple House');
+    _descriptionController = TextEditingController(
+      text: 'Premium villa with clean architecture and warm interiors.',
+    );
+    _priceController = TextEditingController(text: '1.42 Cr');
+    _priceUnitController = TextEditingController(text: 'Total');
+    _cityController = TextEditingController(text: 'Gurgaon');
+    _localityController = TextEditingController(text: 'Golf Course Road');
+    _addressController = TextEditingController(
+      text: '2510 S Congress Ave, TX 78704',
+    );
+    _landmarkController = TextEditingController(text: 'Near Metro Station');
+    _sizeController = TextEditingController(text: '2400 sqft');
+    _floorController = TextEditingController(text: '2');
+    _bedroomController = TextEditingController(text: '4');
+    _bathroomController = TextEditingController(text: '3');
+    _notesController = TextEditingController(
+      text: 'Owner prefers qualified buyers only.',
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
+    _priceUnitController.dispose();
+    _cityController.dispose();
+    _localityController.dispose();
+    _addressController.dispose();
+    _landmarkController.dispose();
+    _sizeController.dispose();
+    _floorController.dispose();
+    _bedroomController.dispose();
+    _bathroomController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  void _saveDraft() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Draft saved locally for this session')),
+    );
+  }
+
+  void _saveProperty() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Property title is required')),
+      );
+      return;
+    }
+
+    final city = _cityController.text.trim();
+    final locality = _localityController.text.trim();
+    final address = _addressController.text.trim();
+    final location = address.isNotEmpty
+        ? address
+        : [locality, city].where((part) => part.isNotEmpty).join(', ');
+    final price = _priceController.text.trim();
+
+    Navigator.of(context).pop(
+      PropertyListing(
+        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+        title: title,
+        location: location.isEmpty ? 'Location pending' : location,
+        price: price.isEmpty ? 'Price pending' : price,
+        oldPrice: price.isEmpty ? 'Price pending' : price,
+        status: 'Sale',
+        image:
+            'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=90',
+        tagColor: AppColors.green,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 112),
+                children: [
+                  const _AddPropertyHeader(),
+                  const SizedBox(height: 24),
+                  _AddPropertySection(
+                    title: 'Basic Details',
+                    icon: HugeIcons.strokeRoundedRealEstate01,
+                    children: [
+                      _PropertyTextInput(
+                        label: 'Property title',
+                        controller: _titleController,
+                      ),
+                      const SizedBox(height: 10),
+                      const _PropertyChoiceGroup(
+                        label: 'Property type',
+                        options: ['Apartment', 'Villa', 'Plot', 'Commercial'],
+                        selectedIndex: 1,
+                      ),
+                      const SizedBox(height: 10),
+                      const _PropertyChoiceGroup(
+                        label: 'Purpose',
+                        options: ['Sale', 'Rent', 'Lease'],
+                        selectedIndex: 0,
+                      ),
+                      const SizedBox(height: 10),
+                      _PropertyTextInput(
+                        label: 'Short description',
+                        controller: _descriptionController,
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _AddPropertySection(
+                    title: 'Price & Availability',
+                    icon: HugeIcons.strokeRoundedDollarCircle,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Price',
+                              controller: _priceController,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Price unit',
+                              controller: _priceUnitController,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const _PropertyChoiceGroup(
+                        label: 'Status',
+                        options: ['Available', 'Hold', 'Sold', 'Rented'],
+                        selectedIndex: 0,
+                      ),
+                      const SizedBox(height: 10),
+                      const _PropertyChoiceGroup(
+                        label: 'Possession',
+                        options: ['Ready', 'Under construction', 'Date'],
+                        selectedIndex: 0,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _AddPropertySection(
+                    title: 'Location',
+                    icon: HugeIcons.strokeRoundedLocation01,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'City',
+                              controller: _cityController,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Locality',
+                              controller: _localityController,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _PropertyTextInput(
+                        label: 'Full address',
+                        controller: _addressController,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 10),
+                      _PropertyTextInput(
+                        label: 'Landmark',
+                        controller: _landmarkController,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _AddPropertySection(
+                    title: 'Features',
+                    icon: HugeIcons.strokeRoundedEntranceStairs,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Size',
+                              controller: _sizeController,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Floor',
+                              controller: _floorController,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Bedrooms',
+                              controller: _bedroomController,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Bathrooms',
+                              controller: _bathroomController,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const _PropertyChoiceGroup(
+                        label: 'Furnishing',
+                        options: ['Unfurnished', 'Semi', 'Fully'],
+                        selectedIndex: 1,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const _AddPropertySection(
+                    title: 'Photos',
+                    icon: HugeIcons.strokeRoundedCameraAdd01,
+                    children: [_PhotoUploadGrid()],
+                  ),
+                  const SizedBox(height: 12),
+                  _AddPropertySection(
+                    title: 'Documents & Notes',
+                    icon: HugeIcons.strokeRoundedFileAdd,
+                    children: [
+                      const _DocumentUploadRow(),
+                      const SizedBox(height: 10),
+                      _PropertyTextInput(
+                        label: 'Internal notes',
+                        controller: _notesController,
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 12,
+              child: _AddPropertyActions(
+                onSaveDraft: _saveDraft,
+                onSaveProperty: _saveProperty,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddPropertyHeader extends StatelessWidget {
+  const _AddPropertyHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _CircleIconButton(
+          icon: HugeIcons.strokeRoundedArrowLeft02,
+          onTap: () => Navigator.maybePop(context),
+        ),
+        const Expanded(
+          child: Center(
+            child: Text(
+              'Add Property',
+              style: TextStyle(
+                fontFamily: AppFonts.cabinet,
+                fontSize: 29,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+                letterSpacing: -1.2,
+              ),
             ),
           ),
-          const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight02, size: 18, color: AppColors.muted, strokeWidth: 1.7),
+        ),
+        const _CircleIconButton(icon: HugeIcons.strokeRoundedMoreVertical),
+      ],
+    );
+  }
+}
+
+class _AddPropertySection extends StatelessWidget {
+  const _AddPropertySection({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final List<List<dynamic>> icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _SoftIcon(icon: icon, size: 42, iconSize: 20),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.7,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...children,
         ],
       ),
     );
   }
 }
 
+class _PropertyTextInput extends StatelessWidget {
+  const _PropertyTextInput({
+    required this.label,
+    this.controller,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final TextEditingController? controller;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(15, 11, 15, 11),
+      decoration: BoxDecoration(
+        color: AppColors.panel.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.9),
+          width: 1.1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.muted,
+              letterSpacing: -0.1,
+            ),
+          ),
+          const SizedBox(height: 5),
+          TextFormField(
+            controller: controller,
+            maxLines: maxLines,
+            style: const TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+              letterSpacing: -0.25,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PropertyChoiceGroup extends StatelessWidget {
+  const _PropertyChoiceGroup({
+    required this.label,
+    required this.options,
+    required this.selectedIndex,
+  });
+
+  final String label;
+  final List<String> options;
+  final int selectedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.muted,
+            ),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var index = 0; index < options.length; index++) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: index == selectedIndex
+                        ? Colors.black
+                        : AppColors.panel.withValues(alpha: 0.78),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: index == selectedIndex
+                          ? Colors.black
+                          : Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                  child: Text(
+                    options[index],
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: index == selectedIndex
+                          ? Colors.white
+                          : AppColors.muted,
+                    ),
+                  ),
+                ),
+                if (index != options.length - 1) const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhotoUploadGrid extends StatelessWidget {
+  const _PhotoUploadGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          height: 148,
+          decoration: BoxDecoration(
+            color: AppColors.mint.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.9),
+              width: 1.1,
+            ),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedCameraAdd01,
+                  size: 32,
+                  color: AppColors.ink,
+                  strokeWidth: 1.7,
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Add cover photo',
+                  style: TextStyle(
+                    fontFamily: AppFonts.cabinet,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Take photo or choose from gallery',
+                  style: TextStyle(fontSize: 13, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: const [
+            Expanded(
+              child: _SmallMediaTile(
+                icon: HugeIcons.strokeRoundedCamera01,
+                label: 'Camera',
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: _SmallMediaTile(
+                icon: HugeIcons.strokeRoundedImage01,
+                label: 'Gallery',
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: _SmallMediaTile(
+                icon: HugeIcons.strokeRoundedAdd01,
+                label: 'More',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SmallMediaTile extends StatelessWidget {
+  const _SmallMediaTile({required this.icon, required this.label});
+
+  final List<List<dynamic>> icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 82,
+      decoration: BoxDecoration(
+        color: AppColors.panel.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.9),
+          width: 1.1,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          HugeIcon(
+            icon: icon,
+            size: 22,
+            color: AppColors.ink,
+            strokeWidth: 1.7,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.muted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocumentUploadRow extends StatelessWidget {
+  const _DocumentUploadRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Expanded(
+          child: _SmallMediaTile(
+            icon: HugeIcons.strokeRoundedFileAdd,
+            label: 'Brochure',
+          ),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _SmallMediaTile(
+            icon: HugeIcons.strokeRoundedDocumentAttachment,
+            label: 'Floor Plan',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddPropertyActions extends StatelessWidget {
+  const _AddPropertyActions({
+    required this.onSaveDraft,
+    required this.onSaveProperty,
+  });
+
+  final VoidCallback onSaveDraft;
+  final VoidCallback onSaveProperty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onSaveDraft,
+            child: Container(
+              height: 58,
+              decoration: BoxDecoration(
+                color: AppColors.panel,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Save Draft',
+                style: TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onSaveProperty,
+            child: Container(
+              height: 58,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Save Property',
+                style: TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({this.onAddProperty, super.key});
+
+  final VoidCallback? onAddProperty;
 
   @override
   Widget build(BuildContext context) {
     return AppScreen(
       title: 'EstateFlow',
       subtitle: 'Today\'s real estate command center',
+      onAddProperty: onAddProperty,
       children: [
         const _HeroMetricCard(),
         const SizedBox(height: 12),
         const Row(
           children: [
-            Expanded(child: _MiniMetricCard(label: 'New leads', value: '18', icon: HugeIcons.strokeRoundedUserAdd01)),
+            Expanded(
+              child: _MiniMetricCard(
+                label: 'New leads',
+                value: '18',
+                icon: HugeIcons.strokeRoundedUserAdd01,
+              ),
+            ),
             SizedBox(width: 10),
-            Expanded(child: _MiniMetricCard(label: 'Calls due', value: '42', icon: HugeIcons.strokeRoundedCall02)),
+            Expanded(
+              child: _MiniMetricCard(
+                label: 'Calls due',
+                value: '42',
+                icon: HugeIcons.strokeRoundedCall02,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
         const Row(
           children: [
-            Expanded(child: _MiniMetricCard(label: 'Hot leads', value: '7', icon: HugeIcons.strokeRoundedFire)),
+            Expanded(
+              child: _MiniMetricCard(
+                label: 'Hot leads',
+                value: '7',
+                icon: HugeIcons.strokeRoundedFire,
+              ),
+            ),
             SizedBox(width: 10),
-            Expanded(child: _MiniMetricCard(label: 'Inventory', value: '64', icon: HugeIcons.strokeRoundedBuilding03)),
+            Expanded(
+              child: _MiniMetricCard(
+                label: 'Inventory',
+                value: '64',
+                icon: HugeIcons.strokeRoundedBuilding03,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
         _SectionHeader(title: 'Recent activity', action: 'View all'),
         const SizedBox(height: 10),
-        const _ActivityTile(icon: HugeIcons.strokeRoundedMessage01, title: 'Property details shared', meta: 'Rahul Sharma · 12 min ago'),
-        const _ActivityTile(icon: HugeIcons.strokeRoundedCalendarCheckIn01, title: 'Site visit scheduled', meta: 'DLF Phase 3 · 2:30 pm'),
-        const _ActivityTile(icon: HugeIcons.strokeRoundedUserCheck01, title: 'New hot lead assigned', meta: 'Priya Mehta · Instagram'),
+        const _ActivityTile(
+          icon: HugeIcons.strokeRoundedMessage01,
+          title: 'Property details shared',
+          meta: 'Rahul Sharma · 12 min ago',
+        ),
+        const _ActivityTile(
+          icon: HugeIcons.strokeRoundedCalendarCheckIn01,
+          title: 'Site visit scheduled',
+          meta: 'DLF Phase 3 · 2:30 pm',
+        ),
+        const _ActivityTile(
+          icon: HugeIcons.strokeRoundedUserCheck01,
+          title: 'New hot lead assigned',
+          meta: 'Priya Mehta · Instagram',
+        ),
       ],
     );
   }
 }
 
 class LeadsScreen extends StatelessWidget {
-  const LeadsScreen({super.key});
+  const LeadsScreen({this.onAddProperty, super.key});
+
+  final VoidCallback? onAddProperty;
 
   @override
   Widget build(BuildContext context) {
@@ -493,23 +1439,52 @@ class LeadsScreen extends StatelessWidget {
       title: 'Leads',
       subtitle: 'Qualify buyers and track every touchpoint',
       actionIcon: HugeIcons.strokeRoundedAdd01,
+      onAddProperty: onAddProperty,
       children: [
         const _SearchFilterBar(hint: 'Search leads, phone or source'),
         const SizedBox(height: 14),
         const _SegmentPills(labels: ['All', 'Hot', 'New', 'Visit', 'Won']),
         const SizedBox(height: 14),
-        _LeadCard(name: 'Rahul Sharma', source: '36 Acre', budget: '₹75L - ₹1.2Cr', status: 'Hot', color: AppColors.mint, onTap: () {}),
+        _LeadCard(
+          name: 'Rahul Sharma',
+          source: '36 Acre',
+          budget: '₹75L - ₹1.2Cr',
+          status: 'Hot',
+          color: AppColors.mint,
+          onTap: () {},
+        ),
         const SizedBox(height: 10),
-        _LeadCard(name: 'Priya Mehta', source: 'Instagram', budget: '3BHK · Gurgaon', status: 'New', color: AppColors.panel, onTap: () {}),
+        _LeadCard(
+          name: 'Priya Mehta',
+          source: 'Instagram',
+          budget: '3BHK · Gurgaon',
+          status: 'New',
+          color: AppColors.panel,
+          onTap: () {},
+        ),
         const SizedBox(height: 10),
-        _LeadCard(name: 'Aman Verma', source: 'MagicBricks', budget: 'Plot · South Delhi', status: 'Follow-up', color: AppColors.panel, onTap: () {}),
+        _LeadCard(
+          name: 'Aman Verma',
+          source: 'MagicBricks',
+          budget: 'Plot · South Delhi',
+          status: 'Follow-up',
+          color: AppColors.panel,
+          onTap: () {},
+        ),
       ],
     );
   }
 }
 
 class PropertiesScreen extends StatefulWidget {
-  const PropertiesScreen({super.key});
+  const PropertiesScreen({
+    required this.properties,
+    this.onAddProperty,
+    super.key,
+  });
+
+  final List<PropertyListing> properties;
+  final VoidCallback? onAddProperty;
 
   @override
   State<PropertiesScreen> createState() => _PropertiesScreenState();
@@ -518,47 +1493,18 @@ class PropertiesScreen extends StatefulWidget {
 class _PropertiesScreenState extends State<PropertiesScreen> {
   bool _isCardView = true;
 
-  static const _properties = [
-    PropertyListing(
-      id: 'avelengo-rental',
-      title: 'Entire rental unit in Avelengo',
-      location: '305 Pomona Ave, Coronado, CA. 92118',
-      price: r'$2,500,000',
-      oldPrice: r'$2,550,000',
-      status: 'Sale',
-      image: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=90',
-      tagColor: Color(0xFFE46773),
-    ),
-    PropertyListing(
-      id: 'coronado-family-house',
-      title: 'Single family house in Coronado',
-      location: '305 Pomona Ave, Coronado, CA. 92118',
-      price: r'$3,600',
-      oldPrice: r'$3,950',
-      status: 'Rental',
-      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=90',
-      tagColor: Color(0xFF36C878),
-    ),
-    PropertyListing(
-      id: 'skyline-apartment',
-      title: 'Skyline Apartment near Expressway',
-      location: 'Noida Sector 150, Uttar Pradesh',
-      price: r'$920,000',
-      oldPrice: r'$960,000',
-      status: 'Ready',
-      image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=90',
-      tagColor: AppColors.green,
-    ),
-  ];
-
   void _openDetails(PropertyListing property) {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => PropertyDetailsScreen(property: property),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PropertyDetailsScreen(property: property),
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 220),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
           return FadeTransition(opacity: curvedAnimation, child: child);
         },
       ),
@@ -571,6 +1517,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       title: 'Properties',
       subtitle: 'Inventory, availability and shareable listings',
       actionIcon: HugeIcons.strokeRoundedAdd01,
+      onAddProperty: widget.onAddProperty,
       children: [
         const _SearchFilterBar(hint: 'Search location, budget or type'),
         const SizedBox(height: 14),
@@ -580,14 +1527,20 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         ),
         const SizedBox(height: 14),
         if (_isCardView) ...[
-          for (final property in _properties) ...[
-            _PropertyFeedCard(property: property, onTap: () => _openDetails(property)),
-            if (property != _properties.last) const SizedBox(height: 12),
+          for (final property in widget.properties) ...[
+            _PropertyFeedCard(
+              property: property,
+              onTap: () => _openDetails(property),
+            ),
+            if (property != widget.properties.last) const SizedBox(height: 12),
           ],
         ] else ...[
-          for (final property in _properties) ...[
-            _PropertyListCard(property: property, onTap: () => _openDetails(property)),
-            if (property != _properties.last) const SizedBox(height: 12),
+          for (final property in widget.properties) ...[
+            _PropertyListCard(
+              property: property,
+              onTap: () => _openDetails(property),
+            ),
+            if (property != widget.properties.last) const SizedBox(height: 12),
           ],
         ],
       ],
@@ -620,7 +1573,9 @@ class PropertyListing {
 }
 
 class FollowUpsScreen extends StatelessWidget {
-  const FollowUpsScreen({super.key});
+  const FollowUpsScreen({this.onAddProperty, super.key});
+
+  final VoidCallback? onAddProperty;
 
   @override
   Widget build(BuildContext context) {
@@ -628,19 +1583,37 @@ class FollowUpsScreen extends StatelessWidget {
       title: 'Follow-ups',
       subtitle: 'Calls, reminders and WhatsApp nudges due today',
       actionIcon: HugeIcons.strokeRoundedCalendarAdd01,
+      onAddProperty: onAddProperty,
       children: const [
         _FollowUpSummaryCard(),
         SizedBox(height: 12),
-        _FollowUpTile(time: '10:30 am', name: 'Rahul Sharma', task: 'Send 3BHK Golf Course options', method: 'WhatsApp'),
-        _FollowUpTile(time: '12:00 pm', name: 'Priya Mehta', task: 'Confirm Saturday site visit', method: 'Call'),
-        _FollowUpTile(time: '4:15 pm', name: 'Aman Verma', task: 'Share revised price sheet', method: 'Email'),
+        _FollowUpTile(
+          time: '10:30 am',
+          name: 'Rahul Sharma',
+          task: 'Send 3BHK Golf Course options',
+          method: 'WhatsApp',
+        ),
+        _FollowUpTile(
+          time: '12:00 pm',
+          name: 'Priya Mehta',
+          task: 'Confirm Saturday site visit',
+          method: 'Call',
+        ),
+        _FollowUpTile(
+          time: '4:15 pm',
+          name: 'Aman Verma',
+          task: 'Share revised price sheet',
+          method: 'Email',
+        ),
       ],
     );
   }
 }
 
 class MoreScreen extends StatelessWidget {
-  const MoreScreen({super.key});
+  const MoreScreen({this.onAddProperty, super.key});
+
+  final VoidCallback? onAddProperty;
 
   @override
   Widget build(BuildContext context) {
@@ -648,12 +1621,33 @@ class MoreScreen extends StatelessWidget {
       title: 'More',
       subtitle: 'Operations, team and admin settings',
       actionIcon: HugeIcons.strokeRoundedSettings01,
+      onAddProperty: onAddProperty,
       children: const [
-        _MoreTile(icon: HugeIcons.strokeRoundedLocation01, title: 'Attendance', subtitle: 'Check-ins, field visits and GPS history'),
-        _MoreTile(icon: HugeIcons.strokeRoundedCalendar03, title: 'Site Visits', subtitle: 'Upcoming property tours and visit notes'),
-        _MoreTile(icon: HugeIcons.strokeRoundedInstagram, title: 'Social Media', subtitle: 'Content calendar and scheduled posts'),
-        _MoreTile(icon: HugeIcons.strokeRoundedUserGroup, title: 'Team', subtitle: 'Invite members and manage roles'),
-        _MoreTile(icon: HugeIcons.strokeRoundedSettings02, title: 'Integrations', subtitle: 'WhatsApp, storage and future voice agents'),
+        _MoreTile(
+          icon: HugeIcons.strokeRoundedLocation01,
+          title: 'Attendance',
+          subtitle: 'Check-ins, field visits and GPS history',
+        ),
+        _MoreTile(
+          icon: HugeIcons.strokeRoundedCalendar03,
+          title: 'Site Visits',
+          subtitle: 'Upcoming property tours and visit notes',
+        ),
+        _MoreTile(
+          icon: HugeIcons.strokeRoundedInstagram,
+          title: 'Social Media',
+          subtitle: 'Content calendar and scheduled posts',
+        ),
+        _MoreTile(
+          icon: HugeIcons.strokeRoundedUserGroup,
+          title: 'Team',
+          subtitle: 'Invite members and manage roles',
+        ),
+        _MoreTile(
+          icon: HugeIcons.strokeRoundedSettings02,
+          title: 'Integrations',
+          subtitle: 'WhatsApp, storage and future voice agents',
+        ),
       ],
     );
   }
@@ -674,11 +1668,21 @@ class _HeroMetricCard extends StatelessWidget {
               const _SoftIcon(icon: HugeIcons.strokeRoundedChartUp),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(18)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.mint,
+                  borderRadius: BorderRadius.circular(18),
+                ),
                 child: const Text(
                   '+18% this week',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.green),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.green,
+                  ),
                 ),
               ),
             ],
@@ -695,7 +1699,10 @@ class _HeroMetricCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const Text('Pipeline value across 46 active opportunities', style: TextStyle(fontSize: 15, color: AppColors.muted)),
+          const Text(
+            'Pipeline value across 46 active opportunities',
+            style: TextStyle(fontSize: 15, color: AppColors.muted),
+          ),
           const SizedBox(height: 20),
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
@@ -713,7 +1720,11 @@ class _HeroMetricCard extends StatelessWidget {
 }
 
 class _MiniMetricCard extends StatelessWidget {
-  const _MiniMetricCard({required this.label, required this.value, required this.icon});
+  const _MiniMetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   final String label;
   final String value;
@@ -739,7 +1750,14 @@ class _MiniMetricCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.muted, letterSpacing: -0.2)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.muted,
+              letterSpacing: -0.2,
+            ),
+          ),
         ],
       ),
     );
@@ -758,17 +1776,33 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.7),
+          style: const TextStyle(
+            fontFamily: AppFonts.cabinet,
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.7,
+          ),
         ),
         const Spacer(),
-        Text(action, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.green)),
+        Text(
+          action,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.green,
+          ),
+        ),
       ],
     );
   }
 }
 
 class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.icon, required this.title, required this.meta});
+  const _ActivityTile({
+    required this.icon,
+    required this.title,
+    required this.meta,
+  });
 
   final List<List<dynamic>> icon;
   final String title;
@@ -788,9 +1822,24 @@ class _ActivityTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink, letterSpacing: -0.3)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(meta, style: const TextStyle(fontSize: 13.5, color: AppColors.muted, letterSpacing: -0.15)),
+                  Text(
+                    meta,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: AppColors.muted,
+                      letterSpacing: -0.15,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -821,9 +1870,22 @@ class _SearchFilterBar extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 21, color: AppColors.muted, strokeWidth: 1.6),
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedSearch01,
+                  size: 21,
+                  color: AppColors.muted,
+                  strokeWidth: 1.6,
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: Text(hint, style: const TextStyle(fontSize: 14.5, color: AppColors.muted))),
+                Expanded(
+                  child: Text(
+                    hint,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -856,7 +1918,11 @@ class _SegmentPills extends StatelessWidget {
               ),
               child: Text(
                 labels[i],
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: i == 0 ? Colors.white : AppColors.muted),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: i == 0 ? Colors.white : AppColors.muted,
+                ),
               ),
             ),
             if (i != labels.length - 1) const SizedBox(width: 8),
@@ -868,7 +1934,14 @@ class _SegmentPills extends StatelessWidget {
 }
 
 class _LeadCard extends StatelessWidget {
-  const _LeadCard({required this.name, required this.source, required this.budget, required this.status, required this.color, required this.onTap});
+  const _LeadCard({
+    required this.name,
+    required this.source,
+    required this.budget,
+    required this.status,
+    required this.color,
+    required this.onTap,
+  });
 
   final String name;
   final String source;
@@ -892,7 +1965,12 @@ class _LeadCard extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 name.characters.first,
-                style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.ink),
+                style: const TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
               ),
             ),
             const SizedBox(width: 13),
@@ -900,9 +1978,24 @@ class _LeadCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink, letterSpacing: -0.4)),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text('$source · $budget', style: const TextStyle(fontSize: 13.5, color: AppColors.muted, letterSpacing: -0.2)),
+                  Text(
+                    '$source · $budget',
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: AppColors.muted,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -939,7 +2032,11 @@ class _PropertyListCard extends StatelessWidget {
                     width: 112,
                     height: 104,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(width: 112, height: 104, color: AppColors.line),
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 112,
+                      height: 104,
+                      color: AppColors.line,
+                    ),
                   ),
                 ),
               ),
@@ -951,15 +2048,44 @@ class _PropertyListCard extends StatelessWidget {
                 children: [
                   _SmallStatusPill(text: property.status),
                   const SizedBox(height: 10),
-                  Text(property.title, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.7)),
+                  Text(
+                    property.title,
+                    style: const TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(property.location, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, color: AppColors.muted)),
+                  Text(
+                    property.location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: AppColors.muted,
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  Text(property.price, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.6)),
+                  Text(
+                    property.price,
+                    style: const TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight02, size: 22, color: AppColors.ink, strokeWidth: 1.7),
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowRight02,
+              size: 22,
+              color: AppColors.ink,
+              strokeWidth: 1.7,
+            ),
             const SizedBox(width: 6),
           ],
         ),
@@ -969,7 +2095,10 @@ class _PropertyListCard extends StatelessWidget {
 }
 
 class _PropertyViewToggle extends StatelessWidget {
-  const _PropertyViewToggle({required this.isCardView, required this.onChanged});
+  const _PropertyViewToggle({
+    required this.isCardView,
+    required this.onChanged,
+  });
 
   final bool isCardView;
   final ValueChanged<bool> onChanged;
@@ -997,7 +2126,12 @@ class _PropertyViewToggle extends StatelessWidget {
 }
 
 class _ViewToggleButton extends StatelessWidget {
-  const _ViewToggleButton({required this.label, required this.icon, required this.selected, required this.onTap});
+  const _ViewToggleButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final List<List<dynamic>> icon;
@@ -1016,16 +2150,29 @@ class _ViewToggleButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: selected ? Colors.black : AppColors.panel,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: selected ? Colors.black : Colors.white, width: 1.2),
+            border: Border.all(
+              color: selected ? Colors.black : Colors.white,
+              width: 1.2,
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              HugeIcon(icon: icon, size: 19, color: selected ? Colors.white : AppColors.muted, strokeWidth: 1.7),
+              HugeIcon(
+                icon: icon,
+                size: 19,
+                color: selected ? Colors.white : AppColors.muted,
+                strokeWidth: 1.7,
+              ),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: selected ? Colors.white : AppColors.muted, letterSpacing: -0.2),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : AppColors.muted,
+                  letterSpacing: -0.2,
+                ),
               ),
             ],
           ),
@@ -1036,10 +2183,7 @@ class _ViewToggleButton extends StatelessWidget {
 }
 
 class _PropertyFeedCard extends StatelessWidget {
-  const _PropertyFeedCard({
-    required this.property,
-    required this.onTap,
-  });
+  const _PropertyFeedCard({required this.property, required this.onTap});
 
   final PropertyListing property;
   final VoidCallback onTap;
@@ -1053,9 +2197,16 @@ class _PropertyFeedCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.panel.withValues(alpha: 0.98),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.95), width: 1.2),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.95),
+            width: 1.2,
+          ),
           boxShadow: [
-            BoxShadow(color: const Color(0xFFB9C1B9).withValues(alpha: 0.18), blurRadius: 28, offset: const Offset(0, 14)),
+            BoxShadow(
+              color: const Color(0xFFB9C1B9).withValues(alpha: 0.18),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
           ],
         ),
         child: Column(
@@ -1075,7 +2226,8 @@ class _PropertyFeedCard extends StatelessWidget {
                         child: Image.network(
                           property.image,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(color: AppColors.line),
                         ),
                       ),
                     ),
@@ -1083,9 +2235,22 @@ class _PropertyFeedCard extends StatelessWidget {
                       left: 13,
                       top: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(color: property.tagColor, borderRadius: BorderRadius.circular(16)),
-                        child: Text(property.status, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: property.tagColor,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          property.status,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                     Positioned(
@@ -1094,9 +2259,17 @@ class _PropertyFeedCard extends StatelessWidget {
                       child: Container(
                         width: 42,
                         height: 42,
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9), shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                        ),
                         child: const Center(
-                          child: HugeIcon(icon: HugeIcons.strokeRoundedArrowExpandDiagonal02, size: 19, color: AppColors.ink, strokeWidth: 1.7),
+                          child: HugeIcon(
+                            icon: HugeIcons.strokeRoundedArrowExpandDiagonal02,
+                            size: 19,
+                            color: AppColors.ink,
+                            strokeWidth: 1.7,
+                          ),
                         ),
                       ),
                     ),
@@ -1114,7 +2287,10 @@ class _PropertyFeedCard extends StatelessWidget {
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
-                                colors: [Colors.white.withValues(alpha: 0.05), Colors.black.withValues(alpha: 0.34)],
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.05),
+                                  Colors.black.withValues(alpha: 0.34),
+                                ],
                               ),
                             ),
                             child: FittedBox(
@@ -1141,14 +2317,22 @@ class _PropertyFeedCard extends StatelessWidget {
                                       children: [
                                         Text(
                                           '/ ',
-                                          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.72)),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.72,
+                                            ),
+                                          ),
                                         ),
                                         Text(
                                           property.oldPrice,
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.white.withValues(alpha: 0.72),
-                                            decoration: TextDecoration.lineThrough,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.72,
+                                            ),
+                                            decoration:
+                                                TextDecoration.lineThrough,
                                             decorationColor: Colors.white,
                                           ),
                                         ),
@@ -1170,12 +2354,25 @@ class _PropertyFeedCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 2),
               child: Text(
                 property.title,
-                style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 21, fontWeight: FontWeight.w700, color: AppColors.ink, letterSpacing: -0.7),
+                style: const TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink,
+                  letterSpacing: -0.7,
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(property.location, style: const TextStyle(fontSize: 13.5, color: AppColors.muted, letterSpacing: -0.2)),
+              child: Text(
+                property.location,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: AppColors.muted,
+                  letterSpacing: -0.2,
+                ),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
@@ -1185,7 +2382,10 @@ class _PropertyFeedCard extends StatelessWidget {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.panel,
                           borderRadius: BorderRadius.circular(18),
@@ -1195,7 +2395,11 @@ class _PropertyFeedCard extends StatelessWidget {
                           'Property Viewed',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.ink),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
                         ),
                       ),
                     ),
@@ -1228,7 +2432,12 @@ class _TinyAvatar extends StatelessWidget {
         border: Border.all(color: Colors.white, width: 2),
       ),
       child: const Center(
-        child: HugeIcon(icon: HugeIcons.strokeRoundedUser02, size: 15, color: AppColors.ink, strokeWidth: 1.7),
+        child: HugeIcon(
+          icon: HugeIcons.strokeRoundedUser02,
+          size: 15,
+          color: AppColors.ink,
+          strokeWidth: 1.7,
+        ),
       ),
     );
   }
@@ -1245,10 +2454,7 @@ class _ViewerCluster extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: const [
-          Positioned(
-            left: 0,
-            child: _ViewerCountBubble(),
-          ),
+          Positioned(left: 0, child: _ViewerCountBubble()),
           Positioned(
             left: 28,
             top: 2,
@@ -1273,9 +2479,19 @@ class _ViewerCountBubble extends StatelessWidget {
     return Container(
       width: 38,
       height: 38,
-      decoration: const BoxDecoration(color: Color(0xFF071B1D), shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: Color(0xFF071B1D),
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
-      child: const Text('+8', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+      child: const Text(
+        '+8',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 }
@@ -1289,15 +2505,30 @@ class _FollowUpSummaryCard extends StatelessWidget {
       padding: EdgeInsets.all(20),
       child: Row(
         children: [
-          _SoftIcon(icon: HugeIcons.strokeRoundedCalendarCheckIn01, size: 56, iconSize: 26),
+          _SoftIcon(
+            icon: HugeIcons.strokeRoundedCalendarCheckIn01,
+            size: 56,
+            iconSize: 26,
+          ),
           SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('14 due today', style: TextStyle(fontFamily: AppFonts.cabinet, fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -0.9)),
+                Text(
+                  '14 due today',
+                  style: TextStyle(
+                    fontFamily: AppFonts.cabinet,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.9,
+                  ),
+                ),
                 SizedBox(height: 4),
-                Text('3 overdue follow-ups need attention before 5 pm.', style: TextStyle(fontSize: 14.5, color: AppColors.muted)),
+                Text(
+                  '3 overdue follow-ups need attention before 5 pm.',
+                  style: TextStyle(fontSize: 14.5, color: AppColors.muted),
+                ),
               ],
             ),
           ),
@@ -1308,7 +2539,12 @@ class _FollowUpSummaryCard extends StatelessWidget {
 }
 
 class _FollowUpTile extends StatelessWidget {
-  const _FollowUpTile({required this.time, required this.name, required this.task, required this.method});
+  const _FollowUpTile({
+    required this.time,
+    required this.name,
+    required this.task,
+    required this.method,
+  });
 
   final String time;
   final String name;
@@ -1326,9 +2562,20 @@ class _FollowUpTile extends StatelessWidget {
           children: [
             Column(
               children: [
-                Text(time, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.muted)),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.muted,
+                  ),
+                ),
                 const SizedBox(height: 12),
-                const _SoftIcon(icon: HugeIcons.strokeRoundedClock01, size: 42, iconSize: 20),
+                const _SoftIcon(
+                  icon: HugeIcons.strokeRoundedClock01,
+                  size: 42,
+                  iconSize: 20,
+                ),
               ],
             ),
             const SizedBox(width: 16),
@@ -1336,9 +2583,24 @@ class _FollowUpTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
                   const SizedBox(height: 5),
-                  Text(task, style: const TextStyle(fontSize: 14.5, color: AppColors.muted, height: 1.35)),
+                  Text(
+                    task,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      color: AppColors.muted,
+                      height: 1.35,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _SmallStatusPill(text: method),
                 ],
@@ -1352,7 +2614,11 @@ class _FollowUpTile extends StatelessWidget {
 }
 
 class _MoreTile extends StatelessWidget {
-  const _MoreTile({required this.icon, required this.title, required this.subtitle});
+  const _MoreTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
 
   final List<List<dynamic>> icon;
   final String title;
@@ -1372,13 +2638,33 @@ class _MoreTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontFamily: AppFonts.cabinet, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(fontSize: 13.5, color: AppColors.muted, letterSpacing: -0.1)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: AppColors.muted,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight02, size: 21, color: AppColors.muted, strokeWidth: 1.7),
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowRight02,
+              size: 21,
+              color: AppColors.muted,
+              strokeWidth: 1.7,
+            ),
           ],
         ),
       ),
@@ -1398,8 +2684,18 @@ class _SoftIcon extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
-      child: Center(child: HugeIcon(icon: icon, size: iconSize, color: AppColors.ink, strokeWidth: 1.65)),
+      decoration: const BoxDecoration(
+        color: AppColors.mint,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: HugeIcon(
+          icon: icon,
+          size: iconSize,
+          color: AppColors.ink,
+          strokeWidth: 1.65,
+        ),
+      ),
     );
   }
 }
@@ -1413,8 +2709,19 @@ class _SmallStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(16)),
-      child: Text(text, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.green, letterSpacing: -0.15)),
+      decoration: BoxDecoration(
+        color: AppColors.mint,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w800,
+          color: AppColors.green,
+          letterSpacing: -0.15,
+        ),
+      ),
     );
   }
 }
@@ -1431,7 +2738,8 @@ class PropertyDetailsScreen extends StatelessWidget {
     price: r'$864,000',
     oldPrice: r'$910,000',
     status: 'Sale',
-    image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90',
+    image:
+        'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90',
     tagColor: AppColors.green,
   );
 
@@ -1487,7 +2795,10 @@ class _ScreenHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _CircleIconButton(icon: HugeIcons.strokeRoundedArrowLeft02, onTap: () => Navigator.maybePop(context)),
+        _CircleIconButton(
+          icon: HugeIcons.strokeRoundedArrowLeft02,
+          onTap: () => Navigator.maybePop(context),
+        ),
         const Expanded(
           child: Center(
             child: Text(
@@ -1528,10 +2839,18 @@ class _CircleIconButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.panel.withValues(alpha: 0.62),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.88), width: 1.1),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.88),
+            width: 1.1,
+          ),
         ),
         child: Center(
-          child: HugeIcon(icon: icon, size: 24, color: AppColors.ink, strokeWidth: 1.7),
+          child: HugeIcon(
+            icon: icon,
+            size: 24,
+            color: AppColors.ink,
+            strokeWidth: 1.7,
+          ),
         ),
       ),
     );
@@ -1559,7 +2878,8 @@ class _HeroGallery extends StatelessWidget {
                 child: Image.network(
                   property.image,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+                  errorBuilder: (context, error, stackTrace) =>
+                      Container(color: AppColors.line),
                 ),
               ),
             ),
@@ -1573,7 +2893,10 @@ class _HeroGallery extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.black.withValues(alpha: 0.18), Colors.transparent],
+                    colors: [
+                      Colors.black.withValues(alpha: 0.18),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
@@ -1581,12 +2904,20 @@ class _HeroGallery extends StatelessWidget {
             Positioned(
               left: 8,
               top: 8,
-              child: _Pill(text: property.status, background: AppColors.ink, color: Colors.white),
+              child: _Pill(
+                text: property.status,
+                background: AppColors.ink,
+                color: Colors.white,
+              ),
             ),
             const Positioned(
               right: 8,
               top: 8,
-              child: _Pill(text: 'In Progress', background: AppColors.mint, color: AppColors.green),
+              child: _Pill(
+                text: 'In Progress',
+                background: AppColors.mint,
+                color: AppColors.green,
+              ),
             ),
           ],
         ),
@@ -1596,7 +2927,11 @@ class _HeroGallery extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.background, required this.color});
+  const _Pill({
+    required this.text,
+    required this.background,
+    required this.color,
+  });
 
   final String text;
   final Color background;
@@ -1612,7 +2947,12 @@ class _Pill extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color, letterSpacing: -0.3),
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: color,
+          letterSpacing: -0.3,
+        ),
       ),
     );
   }
@@ -1627,7 +2967,8 @@ class _ThumbnailStrip extends StatelessWidget {
       children: [
         for (final image in PropertyDetailsScreen._planImages) ...[
           Expanded(child: _PlanThumb(image: image)),
-          if (image != PropertyDetailsScreen._planImages.last) const SizedBox(width: 8),
+          if (image != PropertyDetailsScreen._planImages.last)
+            const SizedBox(width: 8),
         ],
       ],
     );
@@ -1653,11 +2994,15 @@ class _PlanThumb extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(11),
           child: ColorFiltered(
-            colorFilter: const ColorFilter.mode(Colors.white70, BlendMode.screen),
+            colorFilter: const ColorFilter.mode(
+              Colors.white70,
+              BlendMode.screen,
+            ),
             child: Image.network(
               image,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(color: AppColors.line),
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(color: AppColors.line),
             ),
           ),
         ),
@@ -1675,9 +3020,27 @@ class _SpecsCard extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Row(
         children: [
-          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedEntranceStairs, label: 'Floor', value: '2')),
-          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedBedDouble, label: 'Bedroom', value: '4')),
-          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedBathtub01, label: 'Bathroom', value: '3')),
+          Expanded(
+            child: _SpecItem(
+              icon: HugeIcons.strokeRoundedEntranceStairs,
+              label: 'Floor',
+              value: '2',
+            ),
+          ),
+          Expanded(
+            child: _SpecItem(
+              icon: HugeIcons.strokeRoundedBedDouble,
+              label: 'Bedroom',
+              value: '4',
+            ),
+          ),
+          Expanded(
+            child: _SpecItem(
+              icon: HugeIcons.strokeRoundedBathtub01,
+              label: 'Bathroom',
+              value: '3',
+            ),
+          ),
         ],
       ),
     );
@@ -1685,7 +3048,11 @@ class _SpecsCard extends StatelessWidget {
 }
 
 class _SpecItem extends StatelessWidget {
-  const _SpecItem({required this.icon, required this.label, required this.value});
+  const _SpecItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final List<List<dynamic>> icon;
   final String label;
@@ -1698,9 +3065,17 @@ class _SpecItem extends StatelessWidget {
         Container(
           width: 52,
           height: 52,
-          decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: AppColors.mint,
+            shape: BoxShape.circle,
+          ),
           child: Center(
-            child: HugeIcon(icon: icon, size: 25, color: AppColors.ink, strokeWidth: 1.65),
+            child: HugeIcon(
+              icon: icon,
+              size: 25,
+              color: AppColors.ink,
+              strokeWidth: 1.65,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -1712,7 +3087,11 @@ class _SpecItem extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, color: AppColors.muted, letterSpacing: -0.2),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.muted,
+                  letterSpacing: -0.2,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1740,12 +3119,36 @@ class _DetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = [
-      _DetailRow(icon: HugeIcons.strokeRoundedTag02, label: 'Request Type', value: property.status),
-      const _DetailRow(icon: HugeIcons.strokeRoundedCalendar03, label: 'Year Build', value: '2016'),
-      _DetailRow(icon: HugeIcons.strokeRoundedBriefcase02, label: 'Account', value: property.title),
-      const _DetailRow(icon: HugeIcons.strokeRoundedUser02, label: 'Contacts', value: 'Frederick Graham'),
-      _DetailRow(icon: HugeIcons.strokeRoundedMaps, label: 'Location', value: property.location.split(',').first),
-      _DetailRow(icon: HugeIcons.strokeRoundedLocation01, label: 'Address', value: property.location),
+      _DetailRow(
+        icon: HugeIcons.strokeRoundedTag02,
+        label: 'Request Type',
+        value: property.status,
+      ),
+      const _DetailRow(
+        icon: HugeIcons.strokeRoundedCalendar03,
+        label: 'Year Build',
+        value: '2016',
+      ),
+      _DetailRow(
+        icon: HugeIcons.strokeRoundedBriefcase02,
+        label: 'Account',
+        value: property.title,
+      ),
+      const _DetailRow(
+        icon: HugeIcons.strokeRoundedUser02,
+        label: 'Contacts',
+        value: 'Frederick Graham',
+      ),
+      _DetailRow(
+        icon: HugeIcons.strokeRoundedMaps,
+        label: 'Location',
+        value: property.location.split(',').first,
+      ),
+      _DetailRow(
+        icon: HugeIcons.strokeRoundedLocation01,
+        label: 'Address',
+        value: property.location,
+      ),
     ];
 
     return _GlassCard(
@@ -1781,14 +3184,23 @@ class _CardTitle extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        const HugeIcon(icon: HugeIcons.strokeRoundedMoreVertical, size: 24, color: AppColors.ink, strokeWidth: 1.7),
+        const HugeIcon(
+          icon: HugeIcons.strokeRoundedMoreVertical,
+          size: 24,
+          color: AppColors.ink,
+          strokeWidth: 1.7,
+        ),
       ],
     );
   }
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.icon, required this.label, required this.value});
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final List<List<dynamic>> icon;
   final String label;
@@ -1800,12 +3212,21 @@ class _DetailRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 18),
       child: Row(
         children: [
-          HugeIcon(icon: icon, size: 22, color: AppColors.muted, strokeWidth: 1.55),
+          HugeIcon(
+            icon: icon,
+            size: 22,
+            color: AppColors.muted,
+            strokeWidth: 1.55,
+          ),
           const SizedBox(width: 18),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 16, color: AppColors.muted, letterSpacing: -0.25),
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.muted,
+                letterSpacing: -0.25,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1844,7 +3265,12 @@ class _DescriptionCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             '${property.title} is listed at ${property.price} in ${property.location}. This demo record is now shared across the card view, list view, and details page so the selected inventory item stays consistent.',
-            style: const TextStyle(fontSize: 15.5, height: 1.55, color: AppColors.muted, letterSpacing: -0.25),
+            style: const TextStyle(
+              fontSize: 15.5,
+              height: 1.55,
+              color: AppColors.muted,
+              letterSpacing: -0.25,
+            ),
           ),
         ],
       ),
@@ -1866,10 +3292,16 @@ class _GlassCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.panel.withValues(alpha: 0.97), AppColors.panelSoft.withValues(alpha: 0.96)],
+          colors: [
+            AppColors.panel.withValues(alpha: 0.97),
+            AppColors.panelSoft.withValues(alpha: 0.96),
+          ],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.88), width: 1.3),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.88),
+          width: 1.3,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.white.withValues(alpha: 0.8),
@@ -1902,7 +3334,11 @@ class _BottomActions extends StatelessWidget {
               color: AppColors.panel,
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 18, offset: const Offset(0, 6)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
               ],
             ),
             alignment: Alignment.center,
@@ -1926,7 +3362,11 @@ class _BottomActions extends StatelessWidget {
               color: Colors.black,
               borderRadius: BorderRadius.circular(30),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.24), blurRadius: 22, offset: const Offset(0, 10)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.24),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
               ],
             ),
             alignment: Alignment.center,
