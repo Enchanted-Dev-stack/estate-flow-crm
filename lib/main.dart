@@ -258,6 +258,7 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
   late final AnimationController _controller;
   OverlayEntry? _overlayEntry;
   Rect _buttonRect = Rect.zero;
+  bool _isMenuOpen = false;
 
   @override
   void initState() {
@@ -281,6 +282,7 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
     final renderBox = context.findRenderObject() as RenderBox;
     final topLeft = renderBox.localToGlobal(Offset.zero);
     _buttonRect = topLeft & renderBox.size;
+    setState(() => _isMenuOpen = true);
     _overlayEntry = OverlayEntry(builder: _buildOverlay);
     Overlay.of(context).insert(_overlayEntry!);
     _controller.forward(from: 0);
@@ -290,6 +292,9 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
     await _controller.reverse();
     _overlayEntry?.remove();
     _overlayEntry = null;
+    if (mounted) {
+      setState(() => _isMenuOpen = false);
+    }
   }
 
   Widget _buildOverlay(BuildContext context) {
@@ -365,7 +370,10 @@ class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTicke
 
   @override
   Widget build(BuildContext context) {
-    return _CircleIconButton(icon: HugeIcons.strokeRoundedAdd01, onTap: _toggleMenu);
+    return Opacity(
+      opacity: _isMenuOpen ? 0 : 1,
+      child: _CircleIconButton(icon: HugeIcons.strokeRoundedAdd01, onTap: _toggleMenu),
+    );
   }
 }
 
