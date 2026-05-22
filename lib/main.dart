@@ -664,29 +664,39 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   late final TextEditingController _bedroomController;
   late final TextEditingController _bathroomController;
   late final TextEditingController _notesController;
+  int _selectedPropertyTypeIndex = -1;
+  int _selectedPurposeIndex = -1;
+  int _selectedStatusIndex = -1;
+  int _selectedPossessionIndex = -1;
+  int _selectedFurnishingIndex = -1;
+
+  static const _propertyTypeOptions = [
+    'Apartment',
+    'Villa',
+    'Plot',
+    'Commercial',
+  ];
+  static const _purposeOptions = ['Sale', 'Rent', 'Lease'];
+  static const _statusOptions = ['Available', 'Hold', 'Sold', 'Rented'];
+  static const _possessionOptions = ['Ready', 'Under construction', 'Date'];
+  static const _furnishingOptions = ['Unfurnished', 'Semi', 'Fully'];
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: 'Modern Simple House');
-    _descriptionController = TextEditingController(
-      text: 'Premium villa with clean architecture and warm interiors.',
-    );
-    _priceController = TextEditingController(text: '1.42 Cr');
-    _priceUnitController = TextEditingController(text: 'Total');
-    _cityController = TextEditingController(text: 'Gurgaon');
-    _localityController = TextEditingController(text: 'Golf Course Road');
-    _addressController = TextEditingController(
-      text: '2510 S Congress Ave, TX 78704',
-    );
-    _landmarkController = TextEditingController(text: 'Near Metro Station');
-    _sizeController = TextEditingController(text: '2400 sqft');
-    _floorController = TextEditingController(text: '2');
-    _bedroomController = TextEditingController(text: '4');
-    _bathroomController = TextEditingController(text: '3');
-    _notesController = TextEditingController(
-      text: 'Owner prefers qualified buyers only.',
-    );
+    _titleController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _priceController = TextEditingController();
+    _priceUnitController = TextEditingController();
+    _cityController = TextEditingController();
+    _localityController = TextEditingController();
+    _addressController = TextEditingController();
+    _landmarkController = TextEditingController();
+    _sizeController = TextEditingController();
+    _floorController = TextEditingController();
+    _bedroomController = TextEditingController();
+    _bathroomController = TextEditingController();
+    _notesController = TextEditingController();
   }
 
   @override
@@ -729,6 +739,10 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         ? address
         : [locality, city].where((part) => part.isNotEmpty).join(', ');
     final price = _priceController.text.trim();
+    final purpose = _selectedPurposeIndex == -1
+        ? 'Sale'
+        : _purposeOptions[_selectedPurposeIndex];
+    final status = purpose == 'Rent' ? 'Rental' : purpose;
 
     Navigator.of(context).pop(
       PropertyListing(
@@ -737,7 +751,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         location: location.isEmpty ? 'Location pending' : location,
         price: price.isEmpty ? 'Price pending' : price,
         oldPrice: price.isEmpty ? 'Price pending' : price,
-        status: 'Sale',
+        status: status,
         image:
             'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=90',
         tagColor: AppColors.green,
@@ -765,23 +779,29 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     children: [
                       _PropertyTextInput(
                         label: 'Property title',
+                        hint: 'e.g. Modern Simple House',
                         controller: _titleController,
                       ),
                       const SizedBox(height: 10),
-                      const _PropertyChoiceGroup(
+                      _PropertyChoiceGroup(
                         label: 'Property type',
-                        options: ['Apartment', 'Villa', 'Plot', 'Commercial'],
-                        selectedIndex: 1,
+                        options: _propertyTypeOptions,
+                        selectedIndex: _selectedPropertyTypeIndex,
+                        onChanged: (index) =>
+                            setState(() => _selectedPropertyTypeIndex = index),
                       ),
                       const SizedBox(height: 10),
-                      const _PropertyChoiceGroup(
+                      _PropertyChoiceGroup(
                         label: 'Purpose',
-                        options: ['Sale', 'Rent', 'Lease'],
-                        selectedIndex: 0,
+                        options: _purposeOptions,
+                        selectedIndex: _selectedPurposeIndex,
+                        onChanged: (index) =>
+                            setState(() => _selectedPurposeIndex = index),
                       ),
                       const SizedBox(height: 10),
                       _PropertyTextInput(
                         label: 'Short description',
+                        hint: 'Add a short buyer-facing description',
                         controller: _descriptionController,
                         maxLines: 3,
                       ),
@@ -797,6 +817,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Price',
+                              hint: 'e.g. 1.42 Cr',
                               controller: _priceController,
                             ),
                           ),
@@ -804,22 +825,27 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Price unit',
+                              hint: 'e.g. Total',
                               controller: _priceUnitController,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
-                      const _PropertyChoiceGroup(
+                      _PropertyChoiceGroup(
                         label: 'Status',
-                        options: ['Available', 'Hold', 'Sold', 'Rented'],
-                        selectedIndex: 0,
+                        options: _statusOptions,
+                        selectedIndex: _selectedStatusIndex,
+                        onChanged: (index) =>
+                            setState(() => _selectedStatusIndex = index),
                       ),
                       const SizedBox(height: 10),
-                      const _PropertyChoiceGroup(
+                      _PropertyChoiceGroup(
                         label: 'Possession',
-                        options: ['Ready', 'Under construction', 'Date'],
-                        selectedIndex: 0,
+                        options: _possessionOptions,
+                        selectedIndex: _selectedPossessionIndex,
+                        onChanged: (index) =>
+                            setState(() => _selectedPossessionIndex = index),
                       ),
                     ],
                   ),
@@ -833,6 +859,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'City',
+                              hint: 'e.g. Gurgaon',
                               controller: _cityController,
                             ),
                           ),
@@ -840,6 +867,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Locality',
+                              hint: 'e.g. Golf Course Road',
                               controller: _localityController,
                             ),
                           ),
@@ -848,12 +876,14 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                       const SizedBox(height: 10),
                       _PropertyTextInput(
                         label: 'Full address',
+                        hint: 'Street, tower, sector or complete address',
                         controller: _addressController,
                         maxLines: 2,
                       ),
                       const SizedBox(height: 10),
                       _PropertyTextInput(
                         label: 'Landmark',
+                        hint: 'Nearby landmark',
                         controller: _landmarkController,
                       ),
                     ],
@@ -868,6 +898,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Size',
+                              hint: 'e.g. 2400 sqft',
                               controller: _sizeController,
                             ),
                           ),
@@ -875,6 +906,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Floor',
+                              hint: 'e.g. 2',
                               controller: _floorController,
                             ),
                           ),
@@ -886,6 +918,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Bedrooms',
+                              hint: 'e.g. 4',
                               controller: _bedroomController,
                             ),
                           ),
@@ -893,16 +926,19 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                           Expanded(
                             child: _PropertyTextInput(
                               label: 'Bathrooms',
+                              hint: 'e.g. 3',
                               controller: _bathroomController,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
-                      const _PropertyChoiceGroup(
+                      _PropertyChoiceGroup(
                         label: 'Furnishing',
-                        options: ['Unfurnished', 'Semi', 'Fully'],
-                        selectedIndex: 1,
+                        options: _furnishingOptions,
+                        selectedIndex: _selectedFurnishingIndex,
+                        onChanged: (index) =>
+                            setState(() => _selectedFurnishingIndex = index),
                       ),
                     ],
                   ),
@@ -921,6 +957,7 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                       const SizedBox(height: 10),
                       _PropertyTextInput(
                         label: 'Internal notes',
+                        hint: 'Private team notes',
                         controller: _notesController,
                         maxLines: 3,
                       ),
@@ -1021,11 +1058,13 @@ class _AddPropertySection extends StatelessWidget {
 class _PropertyTextInput extends StatelessWidget {
   const _PropertyTextInput({
     required this.label,
+    required this.hint,
     this.controller,
     this.maxLines = 1,
   });
 
   final String label;
+  final String hint;
   final TextEditingController? controller;
   final int maxLines;
 
@@ -1063,10 +1102,17 @@ class _PropertyTextInput extends StatelessWidget {
               color: AppColors.ink,
               letterSpacing: -0.25,
             ),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
               border: InputBorder.none,
               contentPadding: EdgeInsets.zero,
+              hintText: hint,
+              hintStyle: const TextStyle(
+                fontSize: 15.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.muted,
+                letterSpacing: -0.25,
+              ),
             ),
           ),
         ],
@@ -1080,11 +1126,13 @@ class _PropertyChoiceGroup extends StatelessWidget {
     required this.label,
     required this.options,
     required this.selectedIndex,
+    this.onChanged,
   });
 
   final String label;
   final List<String> options;
   final int selectedIndex;
+  final ValueChanged<int>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1107,30 +1155,34 @@ class _PropertyChoiceGroup extends StatelessWidget {
           child: Row(
             children: [
               for (var index = 0; index < options.length; index++) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: index == selectedIndex
-                        ? Colors.black
-                        : AppColors.panel.withValues(alpha: 0.78),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged?.call(index),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
                       color: index == selectedIndex
                           ? Colors.black
-                          : Colors.white.withValues(alpha: 0.9),
+                          : AppColors.panel.withValues(alpha: 0.78),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: index == selectedIndex
+                            ? Colors.black
+                            : Colors.white.withValues(alpha: 0.9),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    options[index],
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      color: index == selectedIndex
-                          ? Colors.white
-                          : AppColors.muted,
+                    child: Text(
+                      options[index],
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: index == selectedIndex
+                            ? Colors.white
+                            : AppColors.muted,
+                      ),
                     ),
                   ),
                 ),

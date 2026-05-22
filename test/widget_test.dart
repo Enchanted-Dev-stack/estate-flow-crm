@@ -35,6 +35,16 @@ void main() {
 
     expect(find.text('Basic Details'), findsOneWidget);
     expect(find.text('Save Property'), findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(find.byType(EditableText).first)
+          .controller
+          .text,
+      isEmpty,
+    );
+
+    await tester.tap(find.text('Rent'));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(EditableText).first, 'Palm Test Villa');
     await tester.tap(find.text('Save Property'));
@@ -42,5 +52,6 @@ void main() {
 
     expect(find.text('Properties'), findsOneWidget);
     expect(find.text('Palm Test Villa'), findsOneWidget);
+    expect(find.text('Rental'), findsWidgets);
   });
 }
