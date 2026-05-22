@@ -238,8 +238,203 @@ class AppHeader extends StatelessWidget {
             ],
           ),
         ),
-        _CircleIconButton(icon: actionIcon ?? HugeIcons.strokeRoundedNotification01, onTap: onAction),
+        if (actionIcon == HugeIcons.strokeRoundedAdd01 && onAction == null)
+          const _MorphingAddButton()
+        else
+          _CircleIconButton(icon: actionIcon ?? HugeIcons.strokeRoundedNotification01, onTap: onAction),
       ],
+    );
+  }
+}
+
+class _MorphingAddButton extends StatefulWidget {
+  const _MorphingAddButton();
+
+  @override
+  State<_MorphingAddButton> createState() => _MorphingAddButtonState();
+}
+
+class _MorphingAddButtonState extends State<_MorphingAddButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  OverlayEntry? _overlayEntry;
+  Rect _buttonRect = Rect.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 360));
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggleMenu() {
+    if (_overlayEntry != null) {
+      _closeMenu();
+      return;
+    }
+
+    final renderBox = context.findRenderObject() as RenderBox;
+    final topLeft = renderBox.localToGlobal(Offset.zero);
+    _buttonRect = topLeft & renderBox.size;
+    _overlayEntry = OverlayEntry(builder: _buildOverlay);
+    Overlay.of(context).insert(_overlayEntry!);
+    _controller.forward(from: 0);
+  }
+
+  Future<void> _closeMenu() async {
+    await _controller.reverse();
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  Widget _buildOverlay(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final panelWidth = (screenSize.width - 36).clamp(260.0, 310.0);
+    final availableHeight = screenSize.height - _buttonRect.top - 18;
+    final panelHeight = availableHeight < 336 ? availableHeight : 336.0;
+    final targetRect = Rect.fromLTWH(
+      screenSize.width - panelWidth - 18,
+      _buttonRect.top,
+      panelWidth,
+      panelHeight,
+    );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _closeMenu,
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final progress = Curves.easeOutCubic.transform(_controller.value);
+            final rect = Rect.lerp(_buttonRect, targetRect, progress)!;
+            final radius = lerpDouble(24, 30, progress)!;
+            final contentOpacity = ((progress - 0.52) / 0.48).clamp(0.0, 1.0);
+
+            return Positioned.fromRect(
+              rect: rect,
+              child: Material(
+                color: Colors.transparent,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(radius),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8 * progress, sigmaY: 8 * progress),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.panel.withValues(alpha: 0.94),
+                        borderRadius: BorderRadius.circular(radius),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.72), width: 1.1),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.16 * progress), blurRadius: 28, offset: const Offset(0, 14)),
+                        ],
+                      ),
+                      child: progress < 0.44
+                          ? Center(
+                              child: Transform.rotate(
+                                angle: progress * 0.7,
+                                child: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 25, color: AppColors.ink, strokeWidth: 1.8),
+                              ),
+                            )
+                          : Opacity(
+                              opacity: contentOpacity,
+                              child: const SingleChildScrollView(
+                                physics: NeverScrollableScrollPhysics(),
+                                child: _QuickCreateMenuContent(),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _CircleIconButton(icon: HugeIcons.strokeRoundedAdd01, onTap: _toggleMenu);
+  }
+}
+
+class _QuickCreateMenuContent extends StatelessWidget {
+  const _QuickCreateMenuContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'Quick Create',
+            style: TextStyle(
+              fontFamily: AppFonts.cabinet,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+              letterSpacing: -0.8,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text('Add CRM records without leaving this screen.', style: TextStyle(fontSize: 13.5, color: AppColors.muted)),
+          SizedBox(height: 14),
+          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedRealEstate01, title: 'Add Property', subtitle: 'Create inventory listing'),
+          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedUserAdd01, title: 'Add Lead', subtitle: 'Capture buyer details'),
+          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedCalendarAdd01, title: 'Add Follow-up', subtitle: 'Schedule next action'),
+          _QuickCreateMenuItem(icon: HugeIcons.strokeRoundedDatabaseImport, title: 'Import Lead', subtitle: 'Webhook or spreadsheet'),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickCreateMenuItem extends StatelessWidget {
+  const _QuickCreateMenuItem({required this.icon, required this.title, required this.subtitle});
+
+  final List<List<dynamic>> icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
+            child: Center(child: HugeIcon(icon: icon, size: 20, color: AppColors.ink, strokeWidth: 1.7)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: AppColors.ink, letterSpacing: -0.3)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontSize: 12.5, color: AppColors.muted, letterSpacing: -0.1)),
+              ],
+            ),
+          ),
+          const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight02, size: 18, color: AppColors.muted, strokeWidth: 1.7),
+        ],
+      ),
     );
   }
 }
