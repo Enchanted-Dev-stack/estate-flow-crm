@@ -35,6 +35,21 @@ void main() {
 
     expect(find.text('Basic Details'), findsOneWidget);
     expect(find.text('Save Property'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Photos'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Camera'), findsOneWidget);
+    expect(find.text('Gallery'), findsOneWidget);
+    expect(find.text('Manage'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Basic Details'),
+      -500,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(
       tester
           .widget<EditableText>(find.byType(EditableText).first)

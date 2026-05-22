@@ -1,9 +1,11 @@
 import 'dart:ui';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:image_picker/image_picker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -664,6 +666,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   late final TextEditingController _bedroomController;
   late final TextEditingController _bathroomController;
   late final TextEditingController _notesController;
+  final ImagePicker _imagePicker = ImagePicker();
+  List<String> _selectedPhotoPaths = [];
   int _selectedPropertyTypeIndex = -1;
   int _selectedPurposeIndex = -1;
   int _selectedStatusIndex = -1;
@@ -754,7 +758,85 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         status: status,
         image:
             'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=90',
+        localImagePath: _selectedPhotoPaths.isEmpty
+            ? null
+            : _selectedPhotoPaths.first,
         tagColor: AppColors.green,
+      ),
+    );
+  }
+
+  Future<void> _addCameraPhoto() async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 88,
+      );
+      if (image == null || !mounted) return;
+      setState(
+        () => _selectedPhotoPaths = [..._selectedPhotoPaths, image.path],
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open camera')));
+    }
+  }
+
+  Future<void> _addGalleryPhotos() async {
+    try {
+      final images = await _imagePicker.pickMultiImage(imageQuality: 88);
+      if (images.isEmpty || !mounted) return;
+      setState(() {
+        _selectedPhotoPaths = [
+          ..._selectedPhotoPaths,
+          ...images.map((image) => image.path),
+        ];
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open gallery')));
+    }
+  }
+
+  void _setCoverPhoto(String path) {
+    setState(() {
+      _selectedPhotoPaths = [
+        path,
+        ..._selectedPhotoPaths.where((photoPath) => photoPath != path),
+      ];
+    });
+    Navigator.maybePop(context);
+  }
+
+  void _removePhoto(String path) {
+    setState(() {
+      _selectedPhotoPaths = _selectedPhotoPaths
+          .where((photoPath) => photoPath != path)
+          .toList();
+    });
+    Navigator.maybePop(context);
+  }
+
+  void _clearPhotos() {
+    setState(() => _selectedPhotoPaths = []);
+    Navigator.maybePop(context);
+  }
+
+  void _openPhotoManager() {
+    if (_selectedPhotoPaths.isEmpty) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PhotoManagerSheet(
+        photoPaths: _selectedPhotoPaths,
+        onSetCover: _setCoverPhoto,
+        onRemove: _removePhoto,
+        onClearAll: _clearPhotos,
       ),
     );
   }
@@ -943,10 +1025,17 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const _AddPropertySection(
+                  _AddPropertySection(
                     title: 'Photos',
                     icon: HugeIcons.strokeRoundedCameraAdd01,
-                    children: [_PhotoUploadGrid()],
+                    children: [
+                      _PhotoUploadGrid(
+                        photoPaths: _selectedPhotoPaths,
+                        onCameraTap: _addCameraPhoto,
+                        onGalleryTap: _addGalleryPhotos,
+                        onManageTap: _openPhotoManager,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   _AddPropertySection(
@@ -1197,74 +1286,178 @@ class _PropertyChoiceGroup extends StatelessWidget {
 }
 
 class _PhotoUploadGrid extends StatelessWidget {
-  const _PhotoUploadGrid();
+  const _PhotoUploadGrid({
+    required this.photoPaths,
+    required this.onCameraTap,
+    required this.onGalleryTap,
+    required this.onManageTap,
+  });
+
+  final List<String> photoPaths;
+  final VoidCallback onCameraTap;
+  final VoidCallback onGalleryTap;
+  final VoidCallback onManageTap;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          height: 148,
-          decoration: BoxDecoration(
-            color: AppColors.mint.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.9),
-              width: 1.1,
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: photoPaths.isEmpty ? onGalleryTap : onManageTap,
+          child: Container(
+            height: 148,
+            decoration: BoxDecoration(
+              color: AppColors.mint.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 1.1,
+              ),
             ),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedCameraAdd01,
-                  size: 32,
-                  color: AppColors.ink,
-                  strokeWidth: 1.7,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Add cover photo',
-                  style: TextStyle(
-                    fontFamily: AppFonts.cabinet,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Take photo or choose from gallery',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted),
-                ),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: photoPaths.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          HugeIcon(
+                            icon: HugeIcons.strokeRoundedCameraAdd01,
+                            size: 32,
+                            color: AppColors.ink,
+                            strokeWidth: 1.7,
+                          ),
+                          SizedBox(height: 10),
+                          Text(
+                            'Add cover photo',
+                            style: TextStyle(
+                              fontFamily: AppFonts.cabinet,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Take photo or choose from gallery',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(File(photoPaths.first), fit: BoxFit.cover),
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.42),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 14,
+                          right: 14,
+                          bottom: 12,
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Cover photo',
+                                  style: TextStyle(
+                                    fontFamily: AppFonts.cabinet,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: -0.4,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  '${photoPaths.length} photo${photoPaths.length == 1 ? '' : 's'}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
+        if (photoPaths.length > 1) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 58,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: photoPaths.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              itemBuilder: (context, index) => ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 62,
+                  height: 58,
+                  child: Image.file(File(photoPaths[index]), fit: BoxFit.cover),
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
         Row(
-          children: const [
+          children: [
             Expanded(
               child: _SmallMediaTile(
                 icon: HugeIcons.strokeRoundedCamera01,
                 label: 'Camera',
+                onTap: onCameraTap,
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _SmallMediaTile(
                 icon: HugeIcons.strokeRoundedImage01,
                 label: 'Gallery',
+                onTap: onGalleryTap,
               ),
             ),
-            SizedBox(width: 10),
-            Expanded(
-              child: _SmallMediaTile(
-                icon: HugeIcons.strokeRoundedAdd01,
-                label: 'More',
+            if (photoPaths.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SmallMediaTile(
+                  icon: HugeIcons.strokeRoundedMoreHorizontal,
+                  label: 'Manage',
+                  onTap: onManageTap,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ],
@@ -1273,42 +1466,227 @@ class _PhotoUploadGrid extends StatelessWidget {
 }
 
 class _SmallMediaTile extends StatelessWidget {
-  const _SmallMediaTile({required this.icon, required this.label});
+  const _SmallMediaTile({required this.icon, required this.label, this.onTap});
 
   final List<List<dynamic>> icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 82,
-      decoration: BoxDecoration(
-        color: AppColors.panel.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.9),
-          width: 1.1,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 82,
+        decoration: BoxDecoration(
+          color: AppColors.panel.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.9),
+            width: 1.1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            HugeIcon(
+              icon: icon,
+              size: 22,
+              color: AppColors.ink,
+              strokeWidth: 1.7,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.muted,
+              ),
+            ),
+          ],
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          HugeIcon(
-            icon: icon,
-            size: 22,
-            color: AppColors.ink,
-            strokeWidth: 1.7,
+    );
+  }
+}
+
+class _PhotoManagerSheet extends StatelessWidget {
+  const _PhotoManagerSheet({
+    required this.photoPaths,
+    required this.onSetCover,
+    required this.onRemove,
+    required this.onClearAll,
+  });
+
+  final List<String> photoPaths;
+  final ValueChanged<String> onSetCover;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onClearAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: _GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Manage Photos',
+                    style: TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                      letterSpacing: -0.8,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.maybePop(context),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 24,
+                      color: AppColors.muted,
+                      strokeWidth: 1.7,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Tap Set cover to make a photo the listing preview.',
+                style: TextStyle(fontSize: 13.5, color: AppColors.muted),
+              ),
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: photoPaths.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final path = photoPaths[index];
+                    final isCover = index == 0;
+                    return Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: SizedBox(
+                            width: 68,
+                            height: 62,
+                            child: Image.file(File(path), fit: BoxFit.cover),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isCover
+                                    ? 'Cover photo'
+                                    : 'Property photo ${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                  letterSpacing: -0.25,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  if (!isCover)
+                                    _PhotoSheetAction(
+                                      label: 'Set cover',
+                                      onTap: () => onSetCover(path),
+                                    ),
+                                  if (!isCover) const SizedBox(width: 8),
+                                  _PhotoSheetAction(
+                                    label: 'Remove',
+                                    isDestructive: true,
+                                    onTap: () => onRemove(path),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onClearAll,
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE7EA),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Clear all photos',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFC62836),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-              color: AppColors.muted,
-            ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoSheetAction extends StatelessWidget {
+  const _PhotoSheetAction({
+    required this.label,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: isDestructive ? const Color(0xFFFFE7EA) : AppColors.mint,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: isDestructive ? const Color(0xFFC62836) : AppColors.green,
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1609,6 +1987,7 @@ class PropertyListing {
     required this.oldPrice,
     required this.status,
     required this.image,
+    this.localImagePath,
     required this.tagColor,
   });
 
@@ -1619,9 +1998,48 @@ class PropertyListing {
   final String oldPrice;
   final String status;
   final String image;
+  final String? localImagePath;
   final Color tagColor;
 
   String get heroTag => 'property-image-$id';
+}
+
+class _PropertyImage extends StatelessWidget {
+  const _PropertyImage({
+    required this.property,
+    required this.fit,
+    this.width,
+    this.height,
+  });
+
+  final PropertyListing property;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    final localImagePath = property.localImagePath;
+    if (localImagePath != null) {
+      return Image.file(
+        File(localImagePath),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) =>
+            Container(width: width, height: height, color: AppColors.line),
+      );
+    }
+
+    return Image.network(
+      property.image,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) =>
+          Container(width: width, height: height, color: AppColors.line),
+    );
+  }
 }
 
 class FollowUpsScreen extends StatelessWidget {
@@ -2079,16 +2497,11 @@ class _PropertyListCard extends StatelessWidget {
                 tag: property.heroTag,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: Image.network(
-                    property.image,
+                  child: _PropertyImage(
+                    property: property,
                     width: 112,
                     height: 104,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 112,
-                      height: 104,
-                      color: AppColors.line,
-                    ),
                   ),
                 ),
               ),
@@ -2275,11 +2688,9 @@ class _PropertyFeedCard extends StatelessWidget {
                       tag: property.heroTag,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
-                        child: Image.network(
-                          property.image,
+                        child: _PropertyImage(
+                          property: property,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(color: AppColors.line),
                         ),
                       ),
                     ),
@@ -2927,12 +3338,7 @@ class _HeroGallery extends StatelessWidget {
               tag: property.heroTag,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(23),
-                child: Image.network(
-                  property.image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      Container(color: AppColors.line),
-                ),
+                child: _PropertyImage(property: property, fit: BoxFit.cover),
               ),
             ),
             Positioned(
