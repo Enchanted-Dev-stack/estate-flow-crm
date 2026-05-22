@@ -79,7 +79,7 @@ class _CrmShellState extends State<CrmShell> {
   static const _items = [
     _NavItem('Dashboard', HugeIcons.strokeRoundedHome05),
     _NavItem('Leads', HugeIcons.strokeRoundedUserGroup),
-    _NavItem('Properties', HugeIcons.strokeRoundedBuilding03),
+    _NavItem('Properties', HugeIcons.strokeRoundedRealEstate01),
     _NavItem('Follow-ups', HugeIcons.strokeRoundedCalendar03),
     _NavItem('More', HugeIcons.strokeRoundedMenuCircle),
   ];
@@ -94,13 +94,15 @@ class _CrmShellState extends State<CrmShell> {
           children: [
             Positioned.fill(child: _screens[_selectedIndex]),
             Positioned(
-              left: 18,
-              right: 18,
               bottom: 12,
-              child: _BottomNavBar(
-                items: _items,
-                selectedIndex: _selectedIndex,
-                onChanged: (index) => setState(() => _selectedIndex = index),
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _BottomNavBar(
+                  items: _items,
+                  selectedIndex: _selectedIndex,
+                  onChanged: (index) => setState(() => _selectedIndex = index),
+                ),
               ),
             ),
           ],
@@ -126,78 +128,55 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 72,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AppColors.panel.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(36),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.2),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 28, offset: const Offset(0, 14)),
-        ],
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < items.length; index++)
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onChanged(index),
-                child: TweenAnimationBuilder<double>(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  tween: Tween<double>(begin: 0, end: selectedIndex == index ? 1 : 0),
-                  builder: (context, value, child) {
-                    final isSelected = selectedIndex == index;
-                    return Center(
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        width: isSelected ? 64 : 66,
-                        height: isSelected ? 54 : 54,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(33),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
+        child: Container(
+          height: 66,
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF3F4A49).withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(33),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.26), blurRadius: 30, offset: const Offset(0, 14)),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(index),
+                  child: SizedBox(
+                    width: 54,
+                    height: 54,
+                    child: Center(
+                      child: Container(
+                        width: 54,
+                        height: 54,
                         decoration: BoxDecoration(
-                          color: Color.lerp(Colors.transparent, Colors.black, value),
-                          borderRadius: BorderRadius.circular(28),
+                          color: selectedIndex == index ? Colors.white : const Color(0xFF6D7775).withValues(alpha: 0.72),
+                          shape: BoxShape.circle,
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            HugeIcon(
-                              icon: items[index].icon,
-                              size: 22 + (6 * value),
-                              color: Color.lerp(AppColors.muted, Colors.white, value),
-                              strokeWidth: 1.7,
-                            ),
-                            AnimatedSize(
-                              duration: const Duration(milliseconds: 160),
-                              curve: Curves.easeOutCubic,
-                              child: isSelected
-                                  ? const SizedBox.shrink()
-                                  : Padding(
-                                      padding: const EdgeInsets.only(top: 3),
-                                      child: Text(
-                                        items[index].label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 8.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.muted,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          ],
+                        child: Center(
+                          child: HugeIcon(
+                            icon: items[index].icon,
+                            size: 22,
+                            color: selectedIndex == index ? AppColors.ink : const Color(0xFFDDE2DF),
+                            strokeWidth: 1.7,
+                          ),
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
-              ),
-            ),
-        ],
+                if (index != items.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1493,8 +1472,8 @@ class _SpecsCard extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Row(
         children: [
-          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedStairs02, label: 'Floor', value: '2')),
-          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedBed, label: 'Bedroom', value: '4')),
+          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedEntranceStairs, label: 'Floor', value: '2')),
+          Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedBedDouble, label: 'Bedroom', value: '4')),
           Expanded(child: _SpecItem(icon: HugeIcons.strokeRoundedBathtub01, label: 'Bathroom', value: '3')),
         ],
       ),
