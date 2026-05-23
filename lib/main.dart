@@ -11,6 +11,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -135,6 +136,42 @@ class _CrmShellState extends State<CrmShell> {
     });
   }
 
+  Future<void> _openEditProperty(PropertyListing property) async {
+    final updatedProperty = await Navigator.of(context).push<PropertyListing>(
+      MaterialPageRoute<PropertyListing>(
+        builder: (_) => AddPropertyScreen(property: property),
+      ),
+    );
+
+    if (updatedProperty == null || !mounted) return;
+
+    setState(() {
+      _properties = _properties
+          .map((item) => item.id == updatedProperty.id ? updatedProperty : item)
+          .toList();
+      _selectedIndex = 2;
+    });
+  }
+
+  void _deleteProperty(PropertyListing property) {
+    setState(() {
+      _properties = _properties
+          .where((item) => item.id != property.id)
+          .toList();
+    });
+  }
+
+  Future<void> _shareProperty(PropertyListing property) async {
+    await SharePlus.instance.share(
+      ShareParams(
+        title: property.title,
+        subject: property.title,
+        text:
+            '${property.title}\n${property.location}\n${property.price}\nStatus: ${property.status}',
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = [
@@ -143,6 +180,9 @@ class _CrmShellState extends State<CrmShell> {
       PropertiesScreen(
         properties: _properties,
         onAddProperty: _openAddProperty,
+        onEditProperty: _openEditProperty,
+        onDeleteProperty: _deleteProperty,
+        onShareProperty: (property) => _shareProperty(property),
       ),
       FollowUpsScreen(onAddProperty: _openAddProperty),
       MoreScreen(onAddProperty: _openAddProperty),
@@ -651,7 +691,9 @@ class _QuickCreateMenuItem extends StatelessWidget {
 }
 
 class AddPropertyScreen extends StatefulWidget {
-  const AddPropertyScreen({super.key});
+  const AddPropertyScreen({this.property, super.key});
+
+  final PropertyListing? property;
 
   @override
   State<AddPropertyScreen> createState() => _AddPropertyScreenState();
@@ -695,19 +737,28 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController();
+    final property = widget.property;
+    _titleController = TextEditingController(text: property?.title ?? '');
     _descriptionController = TextEditingController();
-    _priceController = TextEditingController();
+    _priceController = TextEditingController(text: property?.price ?? '');
     _priceUnitController = TextEditingController();
     _cityController = TextEditingController();
     _localityController = TextEditingController();
-    _addressController = TextEditingController();
+    _addressController = TextEditingController(text: property?.location ?? '');
     _landmarkController = TextEditingController();
     _sizeController = TextEditingController();
     _floorController = TextEditingController();
     _bedroomController = TextEditingController();
     _bathroomController = TextEditingController();
     _notesController = TextEditingController();
+    if (property?.localImagePath != null) {
+      _selectedPhotoPaths = [property!.localImagePath!];
+    }
+    if (property != null) {
+      final purpose = property.status == 'Rental' ? 'Rent' : property.status;
+      _selectedPurposeIndex = _purposeOptions.indexOf(purpose);
+      _selectedStatusIndex = _statusOptions.indexOf(property.status);
+    }
   }
 
   @override
@@ -757,18 +808,21 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
 
     Navigator.of(context).pop(
       PropertyListing(
-        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+        id:
+            widget.property?.id ??
+            'local-${DateTime.now().microsecondsSinceEpoch}',
         title: title,
         location: location.isEmpty ? 'Location pending' : location,
         price: price.isEmpty ? 'Price pending' : price,
         oldPrice: price.isEmpty ? 'Price pending' : price,
         status: status,
         image:
+            widget.property?.image ??
             'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=90',
         localImagePath: _selectedPhotoPaths.isEmpty
             ? null
             : _selectedPhotoPaths.first,
-        tagColor: AppColors.green,
+        tagColor: widget.property?.tagColor ?? AppColors.green,
       ),
     );
   }
@@ -1118,6 +1172,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
               child: _AddPropertyActions(
                 onSaveDraft: _saveDraft,
                 onSaveProperty: _saveProperty,
+                saveLabel: widget.property == null
+                    ? 'Save Property'
+                    : 'Update Property',
               ),
             ),
           ],
@@ -3110,10 +3167,12 @@ class _AddPropertyActions extends StatelessWidget {
   const _AddPropertyActions({
     required this.onSaveDraft,
     required this.onSaveProperty,
+    required this.saveLabel,
   });
 
   final VoidCallback onSaveDraft;
   final VoidCallback onSaveProperty;
+  final String saveLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -3154,8 +3213,8 @@ class _AddPropertyActions extends StatelessWidget {
                 borderRadius: BorderRadius.circular(30),
               ),
               alignment: Alignment.center,
-              child: const Text(
-                'Save Property',
+              child: Text(
+                saveLabel,
                 style: TextStyle(
                   fontFamily: AppFonts.cabinet,
                   fontSize: 17,
@@ -3299,18 +3358,28 @@ class PropertiesScreen extends StatefulWidget {
   const PropertiesScreen({
     required this.properties,
     this.onAddProperty,
+    this.onEditProperty,
+    this.onDeleteProperty,
+    this.onShareProperty,
     super.key,
   });
 
   final List<PropertyListing> properties;
   final VoidCallback? onAddProperty;
+  final ValueChanged<PropertyListing>? onEditProperty;
+  final ValueChanged<PropertyListing>? onDeleteProperty;
+  final ValueChanged<PropertyListing>? onShareProperty;
 
   @override
   State<PropertiesScreen> createState() => _PropertiesScreenState();
 }
 
+enum _FocusedPropertyLayout { card, list }
+
 class _PropertiesScreenState extends State<PropertiesScreen> {
   bool _isCardView = true;
+  PropertyListing? _focusedProperty;
+  _FocusedPropertyLayout _focusedLayout = _FocusedPropertyLayout.card;
 
   void _openDetails(PropertyListing property) {
     Navigator.of(context).push(
@@ -3330,39 +3399,365 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     );
   }
 
+  void _focusProperty(PropertyListing property, _FocusedPropertyLayout layout) {
+    setState(() {
+      _focusedProperty = property;
+      _focusedLayout = layout;
+    });
+  }
+
+  void _clearFocusedProperty() {
+    setState(() => _focusedProperty = null);
+  }
+
+  void _editFocusedProperty(PropertyListing property) {
+    _clearFocusedProperty();
+    widget.onEditProperty?.call(property);
+  }
+
+  void _shareFocusedProperty(PropertyListing property) {
+    _clearFocusedProperty();
+    widget.onShareProperty?.call(property);
+  }
+
+  Future<void> _confirmDeleteProperty(PropertyListing property) async {
+    final shouldDelete = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _DeletePropertySheet(property: property),
+    );
+    if (shouldDelete != true || !mounted) return;
+
+    _clearFocusedProperty();
+    widget.onDeleteProperty?.call(property);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AppScreen(
-      title: 'Properties',
-      subtitle: 'Inventory, availability and shareable listings',
-      actionIcon: HugeIcons.strokeRoundedAdd01,
-      onAddProperty: widget.onAddProperty,
+    final focusedProperty = _focusedProperty;
+
+    return Stack(
       children: [
-        const _SearchFilterBar(hint: 'Search location, budget or type'),
-        const SizedBox(height: 14),
-        _PropertyViewToggle(
-          isCardView: _isCardView,
-          onChanged: (value) => setState(() => _isCardView = value),
+        AppScreen(
+          title: 'Properties',
+          subtitle: 'Inventory, availability and shareable listings',
+          actionIcon: HugeIcons.strokeRoundedAdd01,
+          onAddProperty: widget.onAddProperty,
+          children: [
+            const _SearchFilterBar(hint: 'Search location, budget or type'),
+            const SizedBox(height: 14),
+            _PropertyViewToggle(
+              isCardView: _isCardView,
+              onChanged: (value) => setState(() => _isCardView = value),
+            ),
+            const SizedBox(height: 14),
+            if (_isCardView) ...[
+              for (final property in widget.properties) ...[
+                _PropertyFeedCard(
+                  property: property,
+                  onTap: () => _openDetails(property),
+                  onLongPress: () =>
+                      _focusProperty(property, _FocusedPropertyLayout.card),
+                ),
+                if (property != widget.properties.last)
+                  const SizedBox(height: 12),
+              ],
+            ] else ...[
+              for (final property in widget.properties) ...[
+                _PropertyListCard(
+                  property: property,
+                  onTap: () => _openDetails(property),
+                  onLongPress: () =>
+                      _focusProperty(property, _FocusedPropertyLayout.list),
+                ),
+                if (property != widget.properties.last)
+                  const SizedBox(height: 12),
+              ],
+            ],
+          ],
         ),
-        const SizedBox(height: 14),
-        if (_isCardView) ...[
-          for (final property in widget.properties) ...[
-            _PropertyFeedCard(
-              property: property,
-              onTap: () => _openDetails(property),
-            ),
-            if (property != widget.properties.last) const SizedBox(height: 12),
-          ],
-        ] else ...[
-          for (final property in widget.properties) ...[
-            _PropertyListCard(
-              property: property,
-              onTap: () => _openDetails(property),
-            ),
-            if (property != widget.properties.last) const SizedBox(height: 12),
-          ],
-        ],
+        if (focusedProperty != null)
+          _FocusedPropertyOverlay(
+            property: focusedProperty,
+            layout: _focusedLayout,
+            onDismiss: _clearFocusedProperty,
+            onOpenDetails: () {
+              _clearFocusedProperty();
+              _openDetails(focusedProperty);
+            },
+            onShare: () => _shareFocusedProperty(focusedProperty),
+            onEdit: () => _editFocusedProperty(focusedProperty),
+            onDelete: () => _confirmDeleteProperty(focusedProperty),
+          ),
       ],
+    );
+  }
+}
+
+class _FocusedPropertyOverlay extends StatelessWidget {
+  const _FocusedPropertyOverlay({
+    required this.property,
+    required this.layout,
+    required this.onDismiss,
+    required this.onOpenDetails,
+    required this.onShare,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final PropertyListing property;
+  final _FocusedPropertyLayout layout;
+  final VoidCallback onDismiss;
+  final VoidCallback onOpenDetails;
+  final VoidCallback onShare;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onDismiss,
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.28),
+              padding: const EdgeInsets.fromLTRB(18, 24, 18, 104),
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.92, end: 1),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value.clamp(0, 1),
+                      child: Transform.scale(scale: value, child: child),
+                    );
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {},
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 430),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (layout == _FocusedPropertyLayout.card)
+                            _PropertyFeedCard(
+                              property: property,
+                              onTap: onOpenDetails,
+                              enableHero: false,
+                            )
+                          else
+                            _PropertyListCard(
+                              property: property,
+                              onTap: onOpenDetails,
+                              enableHero: false,
+                            ),
+                          const SizedBox(height: 14),
+                          _FocusedPropertyActions(
+                            onShare: onShare,
+                            onEdit: onEdit,
+                            onDelete: onDelete,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FocusedPropertyActions extends StatelessWidget {
+  const _FocusedPropertyActions({
+    required this.onShare,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final VoidCallback onShare;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _FocusedPropertyActionButton(
+            icon: HugeIcons.strokeRoundedShare08,
+            label: 'Share',
+            onTap: onShare,
+          ),
+          const SizedBox(width: 8),
+          _FocusedPropertyActionButton(
+            icon: HugeIcons.strokeRoundedEdit02,
+            label: 'Edit',
+            onTap: onEdit,
+          ),
+          const SizedBox(width: 8),
+          _FocusedPropertyActionButton(
+            icon: HugeIcons.strokeRoundedDelete02,
+            label: 'Delete',
+            destructive: true,
+            onTap: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FocusedPropertyActionButton extends StatelessWidget {
+  const _FocusedPropertyActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final List<List<dynamic>> icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = destructive ? const Color(0xFFB4282D) : AppColors.ink;
+    final background = destructive
+        ? const Color(0xFFFFE8EA)
+        : AppColors.mint.withValues(alpha: 0.82);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 86,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            HugeIcon(icon: icon, size: 20, color: foreground, strokeWidth: 1.8),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: foreground,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeletePropertySheet extends StatelessWidget {
+  const _DeletePropertySheet({required this.property});
+
+  final PropertyListing property;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: _GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Delete property?',
+                style: TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.8,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'This will remove ${property.title} from your local property list.',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.muted,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.of(context).pop(false),
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: AppColors.panel,
+                          borderRadius: BorderRadius.circular(26),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.of(context).pop(true),
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB4282D),
+                          borderRadius: BorderRadius.circular(26),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Delete',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -3867,23 +4262,32 @@ class _LeadCard extends StatelessWidget {
 }
 
 class _PropertyListCard extends StatelessWidget {
-  const _PropertyListCard({required this.property, required this.onTap});
+  const _PropertyListCard({
+    required this.property,
+    required this.onTap,
+    this.onLongPress,
+    this.enableHero = true,
+  });
 
   final PropertyListing property;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool enableHero;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: _GlassCard(
         padding: const EdgeInsets.all(10),
         child: Row(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: Hero(
+              child: _OptionalHero(
                 tag: property.heroTag,
+                enabled: enableHero,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: _PropertyImage(
@@ -4037,15 +4441,23 @@ class _ViewToggleButton extends StatelessWidget {
 }
 
 class _PropertyFeedCard extends StatelessWidget {
-  const _PropertyFeedCard({required this.property, required this.onTap});
+  const _PropertyFeedCard({
+    required this.property,
+    required this.onTap,
+    this.onLongPress,
+    this.enableHero = true,
+  });
 
   final PropertyListing property;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool enableHero;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -4073,8 +4485,9 @@ class _PropertyFeedCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Hero(
+                    _OptionalHero(
                       tag: property.heroTag,
+                      enabled: enableHero,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: _PropertyImage(
@@ -4549,6 +4962,24 @@ class _SoftIcon extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _OptionalHero extends StatelessWidget {
+  const _OptionalHero({
+    required this.tag,
+    required this.enabled,
+    required this.child,
+  });
+
+  final String tag;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return Hero(tag: tag, child: child);
   }
 }
 
