@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -672,6 +673,8 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   late final TextEditingController _notesController;
   final ImagePicker _imagePicker = ImagePicker();
   List<String> _selectedPhotoPaths = [];
+  _PickedPropertyDocument? _brochureDocument;
+  _PickedPropertyDocument? _floorPlanDocument;
   int _selectedPropertyTypeIndex = -1;
   int _selectedPurposeIndex = -1;
   int _selectedStatusIndex = -1;
@@ -799,6 +802,49 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Could not open gallery')));
     }
+  }
+
+  Future<void> _pickDocument(_PropertyDocumentKind kind) async {
+    try {
+      final result = await FilePicker.pickFiles(type: FileType.any);
+      if (result == null || result.files.isEmpty || !mounted) return;
+
+      final file = result.files.single;
+      if (file.path == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not read selected document')),
+        );
+        return;
+      }
+
+      final document = _PickedPropertyDocument(
+        name: file.name,
+        path: file.path!,
+        size: file.size,
+      );
+      setState(() {
+        if (kind == _PropertyDocumentKind.brochure) {
+          _brochureDocument = document;
+        } else {
+          _floorPlanDocument = document;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open document picker')),
+      );
+    }
+  }
+
+  void _clearDocument(_PropertyDocumentKind kind) {
+    setState(() {
+      if (kind == _PropertyDocumentKind.brochure) {
+        _brochureDocument = null;
+      } else {
+        _floorPlanDocument = null;
+      }
+    });
   }
 
   void _setCoverPhoto(String path) {
@@ -1041,7 +1087,18 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                     title: 'Documents & Notes',
                     icon: HugeIcons.strokeRoundedFileAdd,
                     children: [
-                      const _DocumentUploadRow(),
+                      _DocumentUploadRow(
+                        brochure: _brochureDocument,
+                        floorPlan: _floorPlanDocument,
+                        onPickBrochure: () =>
+                            _pickDocument(_PropertyDocumentKind.brochure),
+                        onPickFloorPlan: () =>
+                            _pickDocument(_PropertyDocumentKind.floorPlan),
+                        onClearBrochure: () =>
+                            _clearDocument(_PropertyDocumentKind.brochure),
+                        onClearFloorPlan: () =>
+                            _clearDocument(_PropertyDocumentKind.floorPlan),
+                      ),
                       const SizedBox(height: 10),
                       _PropertyTextInput(
                         label: 'Internal notes',
@@ -1508,6 +1565,27 @@ class _SmallMediaTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+enum _PropertyDocumentKind { brochure, floorPlan }
+
+class _PickedPropertyDocument {
+  const _PickedPropertyDocument({
+    required this.name,
+    required this.path,
+    required this.size,
+  });
+
+  final String name;
+  final String path;
+  final int size;
+
+  String get formattedSize {
+    if (size <= 0) return 'Selected';
+    final kilobytes = size / 1024;
+    if (kilobytes < 1024) return '${kilobytes.toStringAsFixed(0)} KB';
+    return '${(kilobytes / 1024).toStringAsFixed(1)} MB';
   }
 }
 
@@ -2878,26 +2956,152 @@ class _CameraCircleButton extends StatelessWidget {
 }
 
 class _DocumentUploadRow extends StatelessWidget {
-  const _DocumentUploadRow();
+  const _DocumentUploadRow({
+    required this.brochure,
+    required this.floorPlan,
+    required this.onPickBrochure,
+    required this.onPickFloorPlan,
+    required this.onClearBrochure,
+    required this.onClearFloorPlan,
+  });
+
+  final _PickedPropertyDocument? brochure;
+  final _PickedPropertyDocument? floorPlan;
+  final VoidCallback onPickBrochure;
+  final VoidCallback onPickFloorPlan;
+  final VoidCallback onClearBrochure;
+  final VoidCallback onClearFloorPlan;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
-          child: _SmallMediaTile(
+          child: _DocumentUploadTile(
             icon: HugeIcons.strokeRoundedFileAdd,
             label: 'Brochure',
+            document: brochure,
+            onTap: onPickBrochure,
+            onClear: onClearBrochure,
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
-          child: _SmallMediaTile(
+          child: _DocumentUploadTile(
             icon: HugeIcons.strokeRoundedDocumentAttachment,
             label: 'Floor Plan',
+            document: floorPlan,
+            onTap: onPickFloorPlan,
+            onClear: onClearFloorPlan,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DocumentUploadTile extends StatelessWidget {
+  const _DocumentUploadTile({
+    required this.icon,
+    required this.label,
+    required this.document,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final List<List<dynamic>> icon;
+  final String label;
+  final _PickedPropertyDocument? document;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedDocument = document;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 112,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selectedDocument == null
+              ? AppColors.panel.withValues(alpha: 0.78)
+              : AppColors.mint.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selectedDocument == null
+                ? Colors.white.withValues(alpha: 0.9)
+                : AppColors.green.withValues(alpha: 0.22),
+            width: 1.1,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                HugeIcon(
+                  icon: icon,
+                  size: 23,
+                  color: AppColors.ink,
+                  strokeWidth: 1.7,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  selectedDocument?.name ?? label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.ink,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  selectedDocument?.formattedSize ?? 'Pick any format',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+            if (selectedDocument != null)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onClear,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: const BoxDecoration(
+                      color: AppColors.ink,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedCancel01,
+                        size: 14,
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
