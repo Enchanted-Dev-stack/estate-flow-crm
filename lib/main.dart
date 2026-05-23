@@ -3380,6 +3380,12 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   bool _isCardView = true;
   PropertyListing? _focusedProperty;
   _FocusedPropertyLayout _focusedLayout = _FocusedPropertyLayout.card;
+  Rect? _focusedSourceRect;
+  final Map<String, GlobalKey> _propertyKeys = {};
+
+  GlobalKey _propertyKey(PropertyListing property) {
+    return _propertyKeys.putIfAbsent(property.id, GlobalKey.new);
+  }
 
   void _openDetails(PropertyListing property) {
     Navigator.of(context).push(
@@ -3400,14 +3406,26 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   }
 
   void _focusProperty(PropertyListing property, _FocusedPropertyLayout layout) {
+    final renderObject = _propertyKey(
+      property,
+    ).currentContext?.findRenderObject();
+    final renderBox = renderObject is RenderBox ? renderObject : null;
+    final sourceRect = renderBox == null || !renderBox.hasSize
+        ? null
+        : renderBox.localToGlobal(Offset.zero) & renderBox.size;
+
     setState(() {
       _focusedProperty = property;
       _focusedLayout = layout;
+      _focusedSourceRect = sourceRect;
     });
   }
 
   void _clearFocusedProperty() {
-    setState(() => _focusedProperty = null);
+    setState(() {
+      _focusedProperty = null;
+      _focusedSourceRect = null;
+    });
   }
 
   void _editFocusedProperty(PropertyListing property) {
@@ -3453,22 +3471,28 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
             const SizedBox(height: 14),
             if (_isCardView) ...[
               for (final property in widget.properties) ...[
-                _PropertyFeedCard(
-                  property: property,
-                  onTap: () => _openDetails(property),
-                  onLongPress: () =>
-                      _focusProperty(property, _FocusedPropertyLayout.card),
+                KeyedSubtree(
+                  key: _propertyKey(property),
+                  child: _PropertyFeedCard(
+                    property: property,
+                    onTap: () => _openDetails(property),
+                    onLongPress: () =>
+                        _focusProperty(property, _FocusedPropertyLayout.card),
+                  ),
                 ),
                 if (property != widget.properties.last)
                   const SizedBox(height: 12),
               ],
             ] else ...[
               for (final property in widget.properties) ...[
-                _PropertyListCard(
-                  property: property,
-                  onTap: () => _openDetails(property),
-                  onLongPress: () =>
-                      _focusProperty(property, _FocusedPropertyLayout.list),
+                KeyedSubtree(
+                  key: _propertyKey(property),
+                  child: _PropertyListCard(
+                    property: property,
+                    onTap: () => _openDetails(property),
+                    onLongPress: () =>
+                        _focusProperty(property, _FocusedPropertyLayout.list),
+                  ),
                 ),
                 if (property != widget.properties.last)
                   const SizedBox(height: 12),
@@ -3480,6 +3504,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           _FocusedPropertyOverlay(
             property: focusedProperty,
             layout: _focusedLayout,
+            sourceRect: _focusedSourceRect,
             onDismiss: _clearFocusedProperty,
             onOpenDetails: () {
               _clearFocusedProperty();
@@ -3498,6 +3523,7 @@ class _FocusedPropertyOverlay extends StatelessWidget {
   const _FocusedPropertyOverlay({
     required this.property,
     required this.layout,
+    required this.sourceRect,
     required this.onDismiss,
     required this.onOpenDetails,
     required this.onShare,
@@ -3507,6 +3533,7 @@ class _FocusedPropertyOverlay extends StatelessWidget {
 
   final PropertyListing property;
   final _FocusedPropertyLayout layout;
+  final Rect? sourceRect;
   final VoidCallback onDismiss;
   final VoidCallback onOpenDetails;
   final VoidCallback onShare;
@@ -3515,6 +3542,23 @@ class _FocusedPropertyOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final fallbackWidth = math.min(screenSize.width - 36, 430.0);
+    final fallbackHeight = layout == _FocusedPropertyLayout.card
+        ? 372.0
+        : 124.0;
+    final startRect =
+        sourceRect ??
+        Rect.fromCenter(
+          center: Offset(screenSize.width / 2, screenSize.height / 2),
+          width: fallbackWidth,
+          height: fallbackHeight,
+        );
+    final endRect = _focusedTargetRect(
+      screenSize: screenSize,
+      sourceRect: startRect,
+    );
+
     return Positioned.fill(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -3524,47 +3568,65 @@ class _FocusedPropertyOverlay extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               color: Colors.black.withValues(alpha: 0.28),
-              padding: const EdgeInsets.fromLTRB(18, 24, 18, 104),
-              child: Center(
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.92, end: 1),
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  builder: (context, value, child) {
-                    return Opacity(
-                      opacity: value.clamp(0, 1),
-                      child: Transform.scale(scale: value, child: child),
-                    );
-                  },
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 430),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (layout == _FocusedPropertyLayout.card)
-                            _PropertyFeedCard(
-                              property: property,
-                              onTap: onOpenDetails,
-                              enableHero: false,
-                            )
-                          else
-                            _PropertyListCard(
-                              property: property,
-                              onTap: onOpenDetails,
-                              enableHero: false,
-                            ),
-                          const SizedBox(height: 14),
-                          _FocusedPropertyActions(
-                            onShare: onShare,
-                            onEdit: onEdit,
-                            onDelete: onDelete,
-                          ),
-                        ],
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 340),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  final rect = Rect.lerp(startRect, endRect, value)!;
+                  final actionsOpacity = ((value - 0.62) / 0.38).clamp(
+                    0.0,
+                    1.0,
+                  );
+
+                  return Stack(
+                    children: [
+                      Positioned.fromRect(
+                        rect: rect,
+                        child: Transform.scale(
+                          scale: lerpDouble(1, 1.02, value)!,
+                          child: child,
+                        ),
                       ),
-                    ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: rect.bottom + 14,
+                        child: IgnorePointer(
+                          ignoring: actionsOpacity == 0,
+                          child: Opacity(
+                            opacity: actionsOpacity,
+                            child: Transform.translate(
+                              offset: Offset(0, 14 * (1 - actionsOpacity)),
+                              child: Center(
+                                child: _FocusedPropertyActions(
+                                  onShare: onShare,
+                                  onEdit: onEdit,
+                                  onDelete: onDelete,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  child: SizedBox.expand(
+                    child: layout == _FocusedPropertyLayout.card
+                        ? _PropertyFeedCard(
+                            property: property,
+                            onTap: onOpenDetails,
+                            enableHero: false,
+                          )
+                        : _PropertyListCard(
+                            property: property,
+                            onTap: onOpenDetails,
+                            enableHero: false,
+                          ),
                   ),
                 ),
               ),
@@ -3572,6 +3634,30 @@ class _FocusedPropertyOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Rect _focusedTargetRect({
+    required Size screenSize,
+    required Rect sourceRect,
+  }) {
+    const horizontalMargin = 18.0;
+    const topMargin = 24.0;
+    const bottomReserved = 214.0;
+    final targetWidth = math.min(
+      screenSize.width - (horizontalMargin * 2),
+      430.0,
+    );
+    final targetHeight = sourceRect.height;
+    final availableHeight = screenSize.height - topMargin - bottomReserved;
+    final targetTop =
+        topMargin + math.max(0, (availableHeight - targetHeight) / 2);
+
+    return Rect.fromLTWH(
+      (screenSize.width - targetWidth) / 2,
+      targetTop,
+      targetWidth,
+      targetHeight,
     );
   }
 }
