@@ -493,24 +493,31 @@ class _MorphingAddButtonState extends State<_MorphingAddButton>
                   borderRadius: BorderRadius.circular(radius),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(
-                      sigmaX: 8 * progress,
-                      sigmaY: 8 * progress,
+                      sigmaX: 18 * progress,
+                      sigmaY: 18 * progress,
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.panel.withValues(alpha: 0.94),
+                        color: AppColors.panel.withValues(alpha: 0.68),
                         borderRadius: BorderRadius.circular(radius),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.72),
+                          color: Colors.white.withValues(alpha: 0.82),
                           width: 1.1,
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(
-                              alpha: 0.16 * progress,
+                              alpha: 0.12 * progress,
                             ),
-                            blurRadius: 28,
+                            blurRadius: 34,
                             offset: const Offset(0, 14),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(
+                              alpha: 0.22 * progress,
+                            ),
+                            blurRadius: 20,
+                            offset: const Offset(0, -8),
                           ),
                         ],
                       ),
