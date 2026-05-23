@@ -1,11 +1,13 @@
 import 'dart:ui';
 import 'dart:io';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -767,33 +769,28 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   }
 
   Future<void> _addCameraPhoto() async {
-    try {
-      final image = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 88,
-      );
-      if (image == null || !mounted) return;
-      setState(
-        () => _selectedPhotoPaths = [..._selectedPhotoPaths, image.path],
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Could not open camera')));
-    }
+    final photoPaths = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute<List<String>>(
+        builder: (_) => const PropertyCameraScreen(),
+      ),
+    );
+    if (photoPaths == null || photoPaths.isEmpty || !mounted) return;
+
+    setState(
+      () => _selectedPhotoPaths = [..._selectedPhotoPaths, ...photoPaths],
+    );
   }
 
   Future<void> _addGalleryPhotos() async {
     try {
       final images = await _imagePicker.pickMultiImage(imageQuality: 88);
       if (images.isEmpty || !mounted) return;
-      setState(() {
-        _selectedPhotoPaths = [
+      setState(
+        () => _selectedPhotoPaths = [
           ..._selectedPhotoPaths,
           ...images.map((image) => image.path),
-        ];
-      });
+        ],
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -1686,6 +1683,518 @@ class _PhotoSheetAction extends StatelessWidget {
             fontWeight: FontWeight.w800,
             color: isDestructive ? const Color(0xFFC62836) : AppColors.green,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class PropertyCameraScreen extends StatefulWidget {
+  const PropertyCameraScreen({super.key});
+
+  @override
+  State<PropertyCameraScreen> createState() => _PropertyCameraScreenState();
+}
+
+class _PropertyCameraScreenState extends State<PropertyCameraScreen>
+    with WidgetsBindingObserver {
+  CameraController? _controller;
+  List<CameraDescription> _cameras = [];
+  List<String> _capturedPhotoPaths = [];
+  bool _isInitializing = true;
+  bool _isCapturing = false;
+  bool _isPermissionPermanentlyDenied = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeCamera();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    if (state == AppLifecycleState.inactive) {
+      controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
+  Future<void> _initializeCamera([CameraDescription? selectedCamera]) async {
+    setState(() {
+      _isInitializing = true;
+      _error = null;
+      _isPermissionPermanentlyDenied = false;
+    });
+
+    try {
+      final permission = await Permission.camera.request();
+      if (!permission.isGranted) {
+        if (!mounted) return;
+        setState(() {
+          _isInitializing = false;
+          _isPermissionPermanentlyDenied = permission.isPermanentlyDenied;
+          _error = permission.isPermanentlyDenied
+              ? 'Camera permission is blocked'
+              : 'Camera permission is required';
+        });
+        return;
+      }
+
+      final cameras = _cameras.isEmpty ? await availableCameras() : _cameras;
+      if (cameras.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _cameras = cameras;
+          _isInitializing = false;
+          _error = 'No camera found on this device';
+        });
+        return;
+      }
+
+      final camera = selectedCamera ?? cameras.first;
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      await _controller?.dispose();
+      _controller = controller;
+      await controller.initialize();
+
+      if (!mounted) return;
+      setState(() {
+        _cameras = cameras;
+        _isInitializing = false;
+      });
+    } on CameraException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isInitializing = false;
+        _error = error.description ?? 'Could not initialize camera';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isInitializing = false;
+        _error = 'Could not initialize camera';
+      });
+    }
+  }
+
+  Future<void> _capturePhoto() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized || _isCapturing) {
+      return;
+    }
+
+    setState(() => _isCapturing = true);
+    try {
+      final image = await controller.takePicture();
+      if (!mounted) return;
+      setState(
+        () => _capturedPhotoPaths = [..._capturedPhotoPaths, image.path],
+      );
+    } on CameraException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.description ?? 'Could not capture photo')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCapturing = false);
+      }
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2) return;
+    final currentCamera = _controller?.description;
+    final currentIndex = _cameras.indexWhere(
+      (camera) => camera.name == currentCamera?.name,
+    );
+    final nextCamera = _cameras[(currentIndex + 1) % _cameras.length];
+    await _initializeCamera(nextCamera);
+  }
+
+  void _removeCapture(String path) {
+    setState(() {
+      _capturedPhotoPaths = _capturedPhotoPaths
+          .where((photoPath) => photoPath != path)
+          .toList();
+    });
+  }
+
+  void _finishCapture() {
+    Navigator.of(context).pop(_capturedPhotoPaths);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(child: _buildCameraBody()),
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 14,
+              child: _CameraTopBar(
+                count: _capturedPhotoPaths.length,
+                onClose: () => Navigator.maybePop(context),
+                onDone: _capturedPhotoPaths.isEmpty ? null : _finishCapture,
+              ),
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _CameraBottomBar(
+                capturedPhotoPaths: _capturedPhotoPaths,
+                isCapturing: _isCapturing,
+                canSwitchCamera: _cameras.length > 1,
+                onCapture: _capturePhoto,
+                onSwitchCamera: _switchCamera,
+                onRemoveCapture: _removeCapture,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraBody() {
+    final controller = _controller;
+    if (_isInitializing) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
+    if (_error != null ||
+        controller == null ||
+        !controller.value.isInitialized) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const HugeIcon(
+                icon: HugeIcons.strokeRoundedCameraOff01,
+                size: 42,
+                color: Colors.white,
+                strokeWidth: 1.7,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _error ?? 'Camera is not available',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.6,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Check permissions or try again from the property form.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.white70),
+              ),
+              const SizedBox(height: 18),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _isPermissionPermanentlyDenied
+                    ? openAppSettings
+                    : () => _initializeCamera(),
+                child: Container(
+                  height: 50,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.mint,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _isPermissionPermanentlyDenied
+                        ? 'Open Settings'
+                        : 'Allow Camera',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: AspectRatio(
+          aspectRatio: 3 / 4,
+          child: CameraPreview(controller),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraTopBar extends StatelessWidget {
+  const _CameraTopBar({
+    required this.count,
+    required this.onClose,
+    required this.onDone,
+  });
+
+  final int count;
+  final VoidCallback onClose;
+  final VoidCallback? onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _CameraCircleButton(
+          icon: HugeIcons.strokeRoundedCancel01,
+          onTap: onClose,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.42),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              count == 0
+                  ? 'Capture property photos'
+                  : '$count photo${count == 1 ? '' : 's'} captured',
+              style: const TextStyle(
+                fontFamily: AppFonts.cabinet,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: -0.35,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onDone,
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              color: onDone == null ? Colors.white24 : AppColors.mint,
+              borderRadius: BorderRadius.circular(26),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              'Done',
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w900,
+                color: onDone == null ? Colors.white60 : AppColors.ink,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CameraBottomBar extends StatelessWidget {
+  const _CameraBottomBar({
+    required this.capturedPhotoPaths,
+    required this.isCapturing,
+    required this.canSwitchCamera,
+    required this.onCapture,
+    required this.onSwitchCamera,
+    required this.onRemoveCapture,
+  });
+
+  final List<String> capturedPhotoPaths;
+  final bool isCapturing;
+  final bool canSwitchCamera;
+  final VoidCallback onCapture;
+  final VoidCallback onSwitchCamera;
+  final ValueChanged<String> onRemoveCapture;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (capturedPhotoPaths.isNotEmpty) ...[
+          SizedBox(
+            height: 68,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: capturedPhotoPaths.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (context, index) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onLongPress: () => onRemoveCapture(capturedPhotoPaths[index]),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(17),
+                      child: SizedBox(
+                        width: 68,
+                        height: 68,
+                        child: Image.file(
+                          File(capturedPhotoPaths[index]),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: -5,
+                      top: -5,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onRemoveCapture(capturedPhotoPaths[index]),
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: HugeIcon(
+                              icon: HugeIcons.strokeRoundedCancel01,
+                              size: 13,
+                              color: AppColors.ink,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _CameraCircleButton(
+              icon: HugeIcons.strokeRoundedRefresh,
+              onTap: canSwitchCamera ? onSwitchCamera : null,
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: isCapturing ? null : onCapture,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                width: 82,
+                height: 82,
+                decoration: BoxDecoration(
+                  color: isCapturing ? Colors.white54 : Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.mint, width: 7),
+                ),
+                child: Center(
+                  child: Container(
+                    width: isCapturing ? 24 : 58,
+                    height: isCapturing ? 24 : 58,
+                    decoration: BoxDecoration(
+                      color: isCapturing ? AppColors.ink : Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            _CameraCircleButton(
+              icon: HugeIcons.strokeRoundedImage01,
+              onTap: capturedPhotoPaths.isEmpty ? null : () {},
+              label: capturedPhotoPaths.isEmpty
+                  ? null
+                  : '${capturedPhotoPaths.length}',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CameraCircleButton extends StatelessWidget {
+  const _CameraCircleButton({required this.icon, this.onTap, this.label});
+
+  final List<List<dynamic>> icon;
+  final VoidCallback? onTap;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: onTap == null
+              ? Colors.white.withValues(alpha: 0.18)
+              : Colors.black.withValues(alpha: 0.42),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        ),
+        child: Center(
+          child: label == null
+              ? HugeIcon(
+                  icon: icon,
+                  size: 23,
+                  color: onTap == null ? Colors.white38 : Colors.white,
+                  strokeWidth: 1.7,
+                )
+              : Text(
+                  label!,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
         ),
       ),
     );
