@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -1704,7 +1705,16 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
   bool _isInitializing = true;
   bool _isCapturing = false;
   bool _isPermissionPermanentlyDenied = false;
+  double _selectedFrameAspectRatio = 3 / 4;
+  bool _useFullscreenFrame = false;
   String? _error;
+
+  static const _aspectRatioOptions = [
+    _CameraAspectOption(label: '1:1', value: 1),
+    _CameraAspectOption(label: '3:4', value: 3 / 4),
+    _CameraAspectOption(label: '4:3', value: 4 / 3),
+    _CameraAspectOption(label: '16:9', value: 16 / 9),
+  ];
 
   @override
   void initState() {
@@ -1805,20 +1815,41 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
     setState(() => _isCapturing = true);
     try {
       final image = await controller.takePicture();
+      final imagePath =
+          controller.description.lensDirection == CameraLensDirection.front
+          ? await _flipFrontCameraCapture(image.path)
+          : image.path;
       if (!mounted) return;
-      setState(
-        () => _capturedPhotoPaths = [..._capturedPhotoPaths, image.path],
-      );
+      setState(() => _capturedPhotoPaths = [..._capturedPhotoPaths, imagePath]);
     } on CameraException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.description ?? 'Could not capture photo')),
       );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not process photo')));
     } finally {
       if (mounted) {
         setState(() => _isCapturing = false);
       }
     }
+  }
+
+  Future<String> _flipFrontCameraCapture(String path) async {
+    final file = File(path);
+    final bytes = await file.readAsBytes();
+    final decodedImage = img.decodeImage(bytes);
+    if (decodedImage == null) return path;
+
+    final fixedImage = img.flipHorizontal(decodedImage);
+    await file.writeAsBytes(
+      img.encodeJpg(fixedImage, quality: 92),
+      flush: true,
+    );
+    return path;
   }
 
   Future<void> _switchCamera() async {
@@ -1861,6 +1892,23 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
                 onDone: _capturedPhotoPaths.isEmpty ? null : _finishCapture,
               ),
             ),
+            if (_controller?.value.isInitialized == true && _error == null)
+              Positioned(
+                left: 16,
+                right: 16,
+                top: 80,
+                child: _CameraAspectRatioBar(
+                  options: _aspectRatioOptions,
+                  selectedValue: _selectedFrameAspectRatio,
+                  useFullscreenFrame: _useFullscreenFrame,
+                  onChanged: (value) => setState(() {
+                    _selectedFrameAspectRatio = value;
+                    _useFullscreenFrame = false;
+                  }),
+                  onFullscreenTap: () =>
+                      setState(() => _useFullscreenFrame = true),
+                ),
+              ),
             Positioned(
               left: 16,
               right: 16,
@@ -1953,12 +2001,141 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
       );
     }
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final frameAspectRatio = _useFullscreenFrame
+            ? constraints.maxWidth / constraints.maxHeight
+            : _selectedFrameAspectRatio;
+
+        return Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(_useFullscreenFrame ? 0 : 28),
+            child: AspectRatio(
+              aspectRatio: frameAspectRatio,
+              child: _CroppedCameraPreview(controller: controller),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CameraAspectOption {
+  const _CameraAspectOption({required this.label, required this.value});
+
+  final String label;
+  final double value;
+}
+
+class _CroppedCameraPreview extends StatelessWidget {
+  const _CroppedCameraPreview({required this.controller});
+
+  final CameraController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewSize = controller.value.previewSize;
+    final previewWidth = previewSize?.height ?? 1080;
+    final previewHeight = previewSize?.width ?? 1920;
+
+    return ClipRect(
+      child: OverflowBox(
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: previewWidth,
+            height: previewHeight,
+            child: CameraPreview(controller),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraAspectRatioBar extends StatelessWidget {
+  const _CameraAspectRatioBar({
+    required this.options,
+    required this.selectedValue,
+    required this.useFullscreenFrame,
+    required this.onChanged,
+    required this.onFullscreenTap,
+  });
+
+  final List<_CameraAspectOption> options;
+  final double selectedValue;
+  final bool useFullscreenFrame;
+  final ValueChanged<double> onChanged;
+  final VoidCallback onFullscreenTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: AspectRatio(
-          aspectRatio: 3 / 4,
-          child: CameraPreview(controller),
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onFullscreenTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: useFullscreenFrame ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  'Full',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    color: useFullscreenFrame ? AppColors.ink : Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 2),
+            for (final option in options) ...[
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onChanged(option.value),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: option.value == selectedValue
+                        ? Colors.white
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    option.label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: option.value == selectedValue
+                          ? AppColors.ink
+                          : Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              if (option != options.last) const SizedBox(width: 2),
+            ],
+          ],
         ),
       ),
     );
