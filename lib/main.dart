@@ -1892,18 +1892,29 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
     }
   }
 
-  void _openCapturedPhotoReview() {
+  Future<void> _openCapturedPhotoReview() async {
     if (_capturedPhotos.isEmpty) return;
 
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _CapturedPhotoReviewSheet(
-        photos: _capturedPhotos,
-        onRemove: _removeCapture,
-      ),
-    );
+    final updatedPhotos = await Navigator.of(context)
+        .push<List<_CapturedCameraPhoto>>(
+          PageRouteBuilder<List<_CapturedCameraPhoto>>(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                _CapturedPhotoGalleryScreen(photos: _capturedPhotos),
+            transitionDuration: const Duration(milliseconds: 260),
+            reverseTransitionDuration: const Duration(milliseconds: 220),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  final curvedAnimation = CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  );
+                  return FadeTransition(opacity: curvedAnimation, child: child);
+                },
+          ),
+        );
+
+    if (updatedPhotos == null || !mounted) return;
+    setState(() => _capturedPhotos = updatedPhotos);
   }
 
   void _finishCapture() {
@@ -2477,87 +2488,116 @@ class _CapturedDeckCard extends StatelessWidget {
   }
 }
 
-class _CapturedPhotoReviewSheet extends StatelessWidget {
-  const _CapturedPhotoReviewSheet({
-    required this.photos,
-    required this.onRemove,
-  });
+class _CapturedPhotoGalleryScreen extends StatefulWidget {
+  const _CapturedPhotoGalleryScreen({required this.photos});
 
   final List<_CapturedCameraPhoto> photos;
-  final ValueChanged<String> onRemove;
+
+  @override
+  State<_CapturedPhotoGalleryScreen> createState() =>
+      _CapturedPhotoGalleryScreenState();
+}
+
+class _CapturedPhotoGalleryScreenState
+    extends State<_CapturedPhotoGalleryScreen> {
+  late List<_CapturedCameraPhoto> _photos = List.of(widget.photos);
+
+  void _removePhoto(_CapturedCameraPhoto photo) {
+    setState(() {
+      _photos = _photos.where((item) => item.path != photo.path).toList();
+    });
+    if (_photos.isEmpty) {
+      Navigator.of(context).pop(_photos);
+    }
+  }
+
+  void _close() {
+    Navigator.of(context).pop(_photos);
+  }
+
+  void _openFullView(_CapturedCameraPhoto photo) {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            _CapturedPhotoFullScreen(photo: photo),
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curvedAnimation, child: child);
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.76,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF101211),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    '${photos.length} captured photo${photos.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                      fontFamily: AppFonts.cabinet,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.8,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _close();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF101211),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _CameraCircleButton(
+                      icon: HugeIcons.strokeRoundedArrowLeft02,
+                      onTap: _close,
                     ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => Navigator.maybePop(context),
-                    child: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedCancel01,
-                      size: 24,
-                      color: Colors.white70,
-                      strokeWidth: 1.7,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        '${_photos.length} captured photo${_photos.length == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          fontFamily: AppFonts.cabinet,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -1,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Hold a photo for full view. Tap X to remove it.',
-                style: TextStyle(fontSize: 13.5, color: Colors.white60),
-              ),
-              const SizedBox(height: 14),
-              Flexible(
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: 1,
-                  ),
-                  itemCount: photos.length,
-                  itemBuilder: (context, index) {
-                    final photo = photos[index];
-                    return _CapturedReviewTile(
-                      photo: photo,
-                      index: index,
-                      onRemove: () => onRemove(photo.path),
-                    );
-                  },
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                const Text(
+                  'Hold a photo for full view. Tap X to remove it.',
+                  style: TextStyle(fontSize: 13.5, color: Colors.white60),
+                ),
+                const SizedBox(height: 18),
+                Expanded(
+                  child: GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 1,
+                        ),
+                    itemCount: _photos.length,
+                    itemBuilder: (context, index) {
+                      final photo = _photos[index];
+                      return _CapturedGalleryTile(
+                        photo: photo,
+                        index: index,
+                        onRemove: () => _removePhoto(photo),
+                        onFullView: () => _openFullView(photo),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2565,28 +2605,33 @@ class _CapturedPhotoReviewSheet extends StatelessWidget {
   }
 }
 
-class _CapturedReviewTile extends StatelessWidget {
-  const _CapturedReviewTile({
+class _CapturedGalleryTile extends StatelessWidget {
+  const _CapturedGalleryTile({
     required this.photo,
     required this.index,
     required this.onRemove,
+    required this.onFullView,
   });
 
   final _CapturedCameraPhoto photo;
   final int index;
   final VoidCallback onRemove;
+  final VoidCallback onFullView;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onLongPress: () => _openFullView(context),
+      onLongPress: onFullView,
       child: Stack(
         children: [
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(22),
-              child: Image.file(File(photo.path), fit: BoxFit.cover),
+              child: Hero(
+                tag: 'captured-photo-${photo.path}',
+                child: Image.file(File(photo.path), fit: BoxFit.cover),
+              ),
             ),
           ),
           Positioned.fill(
@@ -2653,44 +2698,33 @@ class _CapturedReviewTile extends StatelessWidget {
       ),
     );
   }
-
-  void _openFullView(BuildContext context) {
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-    final sourceRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
-
-    Navigator.of(context).push(
-      PageRouteBuilder<void>(
-        opaque: false,
-        barrierColor: Colors.black.withValues(alpha: 0.92),
-        transitionDuration: const Duration(milliseconds: 320),
-        reverseTransitionDuration: const Duration(milliseconds: 240),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            _CapturedPhotoFullView(photo: photo, sourceRect: sourceRect),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            child,
-      ),
-    );
-  }
 }
 
-class _CapturedPhotoFullView extends StatelessWidget {
-  const _CapturedPhotoFullView({required this.photo, required this.sourceRect});
+class _CapturedPhotoFullScreen extends StatelessWidget {
+  const _CapturedPhotoFullScreen({required this.photo});
 
   final _CapturedCameraPhoto photo;
-  final Rect sourceRect;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: GestureDetector(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.maybePop(context),
         child: Stack(
           children: [
             Positioned.fill(
-              child: _CapturedPhotoMorph(photo: photo, sourceRect: sourceRect),
+              child: InteractiveViewer(
+                minScale: 0.75,
+                maxScale: 4,
+                child: Center(
+                  child: Hero(
+                    tag: 'captured-photo-${photo.path}',
+                    child: Image.file(File(photo.path)),
+                  ),
+                ),
+              ),
             ),
             Positioned(
               right: 18,
@@ -2717,70 +2751,6 @@ class _CapturedPhotoFullView extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _CapturedPhotoMorph extends StatelessWidget {
-  const _CapturedPhotoMorph({required this.photo, required this.sourceRect});
-
-  final _CapturedCameraPhoto photo;
-  final Rect sourceRect;
-
-  @override
-  Widget build(BuildContext context) {
-    final routeAnimation = ModalRoute.of(context)?.animation;
-    final screenSize = MediaQuery.sizeOf(context);
-    final imageRect = _targetImageRect(screenSize, photo.aspectRatio);
-
-    return AnimatedBuilder(
-      animation: routeAnimation ?? kAlwaysCompleteAnimation,
-      builder: (context, child) {
-        final progress = Curves.easeOutCubic.transform(
-          routeAnimation?.value ?? 1,
-        );
-        final rect = Rect.lerp(sourceRect, imageRect, progress)!;
-        final radius = lerpDouble(22, 0, progress)!;
-
-        return Stack(
-          children: [
-            Positioned.fromRect(
-              rect: rect,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(radius),
-                child: InteractiveViewer(
-                  minScale: 0.75,
-                  maxScale: 4,
-                  child: SizedBox.expand(
-                    child: Image.file(File(photo.path), fit: BoxFit.cover),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Rect _targetImageRect(Size screenSize, double aspectRatio) {
-    final horizontalPadding = 18.0;
-    final verticalPadding = 74.0;
-    final maxWidth = screenSize.width - (horizontalPadding * 2);
-    final maxHeight = screenSize.height - (verticalPadding * 2);
-    var width = maxWidth;
-    var height = width / aspectRatio;
-
-    if (height > maxHeight) {
-      height = maxHeight;
-      width = height * aspectRatio;
-    }
-
-    return Rect.fromLTWH(
-      (screenSize.width - width) / 2,
-      (screenSize.height - height) / 2,
-      width,
-      height,
     );
   }
 }
