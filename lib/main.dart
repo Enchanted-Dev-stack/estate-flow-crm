@@ -2231,115 +2231,173 @@ class _CameraBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (capturedPhotoPaths.isNotEmpty) ...[
-          SizedBox(
-            height: 68,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: capturedPhotoPaths.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 10),
-              itemBuilder: (context, index) => GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onLongPress: () => onRemoveCapture(capturedPhotoPaths[index]),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(17),
-                      child: SizedBox(
-                        width: 68,
-                        height: 68,
-                        child: Image.file(
-                          File(capturedPhotoPaths[index]),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: -5,
-                      top: -5,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onRemoveCapture(capturedPhotoPaths[index]),
-                        child: Container(
-                          width: 22,
-                          height: 22,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Center(
-                            child: HugeIcon(
-                              icon: HugeIcons.strokeRoundedCancel01,
-                              size: 13,
-                              color: AppColors.ink,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+        _CameraCircleButton(
+          icon: HugeIcons.strokeRoundedRefresh,
+          onTap: canSwitchCamera ? onSwitchCamera : null,
+        ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: isCapturing ? null : onCapture,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            width: 82,
+            height: 82,
+            decoration: BoxDecoration(
+              color: isCapturing ? Colors.white54 : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.mint, width: 7),
+            ),
+            child: Center(
+              child: Container(
+                width: isCapturing ? 24 : 58,
+                height: isCapturing ? 24 : 58,
+                decoration: BoxDecoration(
+                  color: isCapturing ? AppColors.ink : Colors.white,
+                  shape: BoxShape.circle,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 14),
-        ],
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _CameraCircleButton(
-              icon: HugeIcons.strokeRoundedRefresh,
-              onTap: canSwitchCamera ? onSwitchCamera : null,
-            ),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: isCapturing ? null : onCapture,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 140),
-                width: 82,
-                height: 82,
-                decoration: BoxDecoration(
-                  color: isCapturing ? Colors.white54 : Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.mint, width: 7),
-                ),
-                child: Center(
-                  child: Container(
-                    width: isCapturing ? 24 : 58,
-                    height: isCapturing ? 24 : 58,
-                    decoration: BoxDecoration(
-                      color: isCapturing ? AppColors.ink : Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            _CameraCircleButton(
-              icon: HugeIcons.strokeRoundedImage01,
-              onTap: capturedPhotoPaths.isEmpty ? null : () {},
-              label: capturedPhotoPaths.isEmpty
-                  ? null
-                  : '${capturedPhotoPaths.length}',
-            ),
-          ],
+        ),
+        _CapturedPhotoDeck(
+          photoPaths: capturedPhotoPaths,
+          onRemoveLatest: capturedPhotoPaths.isEmpty
+              ? null
+              : () => onRemoveCapture(capturedPhotoPaths.last),
         ),
       ],
     );
   }
 }
 
+class _CapturedPhotoDeck extends StatelessWidget {
+  const _CapturedPhotoDeck({required this.photoPaths, this.onRemoveLatest});
+
+  final List<String> photoPaths;
+  final VoidCallback? onRemoveLatest;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photoPaths.isEmpty) {
+      return const _CameraCircleButton(icon: HugeIcons.strokeRoundedImage01);
+    }
+
+    final visiblePhotos = photoPaths.length <= 3
+        ? photoPaths
+        : photoPaths.sublist(photoPaths.length - 3);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: onRemoveLatest,
+      child: SizedBox(
+        width: 72,
+        height: 82,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          switchInCurve: Curves.easeOutBack,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return ScaleTransition(
+              scale: Tween<double>(begin: 0.72, end: 1).animate(animation),
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: Stack(
+            key: ValueKey(photoPaths.length),
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              for (var index = 0; index < visiblePhotos.length; index++)
+                _CapturedDeckCard(
+                  path: visiblePhotos[index],
+                  index: index,
+                  total: visiblePhotos.length,
+                ),
+              Positioned(
+                right: -2,
+                bottom: 2,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.mint,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 1.4),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${photoPaths.length}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CapturedDeckCard extends StatelessWidget {
+  const _CapturedDeckCard({
+    required this.path,
+    required this.index,
+    required this.total,
+  });
+
+  final String path;
+  final int index;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = index - (total - 1);
+    final angle = [-0.16, 0.08, -0.04][index % 3];
+    final offset = Offset(order * 5.0, order.abs() * 3.0);
+
+    return Transform.translate(
+      offset: offset,
+      child: Transform.rotate(
+        angle: angle,
+        child: Container(
+          width: 56,
+          height: 64,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white, width: 2.4),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: Image.file(File(path), fit: BoxFit.cover),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CameraCircleButton extends StatelessWidget {
-  const _CameraCircleButton({required this.icon, this.onTap, this.label});
+  const _CameraCircleButton({required this.icon, this.onTap});
 
   final List<List<dynamic>> icon;
   final VoidCallback? onTap;
-  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -2357,21 +2415,12 @@ class _CameraCircleButton extends StatelessWidget {
           border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
         ),
         child: Center(
-          child: label == null
-              ? HugeIcon(
-                  icon: icon,
-                  size: 23,
-                  color: onTap == null ? Colors.white38 : Colors.white,
-                  strokeWidth: 1.7,
-                )
-              : Text(
-                  label!,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
+          child: HugeIcon(
+            icon: icon,
+            size: 23,
+            color: onTap == null ? Colors.white38 : Colors.white,
+            strokeWidth: 1.7,
+          ),
         ),
       ),
     );
