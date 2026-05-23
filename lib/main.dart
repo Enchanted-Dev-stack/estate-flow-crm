@@ -3378,6 +3378,7 @@ enum _FocusedPropertyLayout { card, list }
 
 class _PropertiesScreenState extends State<PropertiesScreen> {
   bool _isCardView = true;
+  String? _selectedStatusFilter;
   PropertyListing? _focusedProperty;
   _FocusedPropertyLayout _focusedLayout = _FocusedPropertyLayout.card;
   Rect? _focusedSourceRect;
@@ -3456,9 +3457,45 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     widget.onDeleteProperty?.call(property);
   }
 
+  List<String> get _statusFilterOptions {
+    final statuses = widget.properties
+        .map((property) => property.status)
+        .toSet();
+    return statuses.toList()..sort();
+  }
+
+  List<PropertyListing> get _filteredProperties {
+    final selectedStatus = _selectedStatusFilter;
+    if (selectedStatus == null) return widget.properties;
+    return widget.properties
+        .where((property) => property.status == selectedStatus)
+        .toList();
+  }
+
+  Future<void> _openFilterSheet() async {
+    const allStatusesValue = '__all__';
+    final selectedStatus = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PropertyFilterSheet(
+        statuses: _statusFilterOptions,
+        selectedStatus: _selectedStatusFilter,
+        allStatusesValue: allStatusesValue,
+      ),
+    );
+    if (selectedStatus == null || !mounted) return;
+
+    setState(() {
+      _selectedStatusFilter = selectedStatus == allStatusesValue
+          ? null
+          : selectedStatus;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final focusedProperty = _focusedProperty;
+    final properties = _filteredProperties;
 
     return Stack(
       children: [
@@ -3470,15 +3507,25 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
             actionIcon: HugeIcons.strokeRoundedAdd01,
             onAddProperty: widget.onAddProperty,
             children: [
-              const _SearchFilterBar(hint: 'Search location, budget or type'),
+              _SearchFilterBar(
+                hint: _selectedStatusFilter == null
+                    ? 'Search location, budget or type'
+                    : 'Filtered by $_selectedStatusFilter',
+                isFilterActive: _selectedStatusFilter != null,
+                onFilterTap: _openFilterSheet,
+              ),
               const SizedBox(height: 14),
               _PropertyViewToggle(
                 isCardView: _isCardView,
                 onChanged: (value) => setState(() => _isCardView = value),
               ),
               const SizedBox(height: 14),
-              if (_isCardView) ...[
-                for (final property in widget.properties) ...[
+              if (properties.isEmpty)
+                _EmptyPropertyFilterState(
+                  onClear: () => setState(() => _selectedStatusFilter = null),
+                )
+              else if (_isCardView) ...[
+                for (final property in properties) ...[
                   KeyedSubtree(
                     key: _propertyKey(property),
                     child: _PropertyFeedCard(
@@ -3488,11 +3535,10 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                           _focusProperty(property, _FocusedPropertyLayout.card),
                     ),
                   ),
-                  if (property != widget.properties.last)
-                    const SizedBox(height: 12),
+                  if (property != properties.last) const SizedBox(height: 12),
                 ],
               ] else ...[
-                for (final property in widget.properties) ...[
+                for (final property in properties) ...[
                   KeyedSubtree(
                     key: _propertyKey(property),
                     child: _PropertyListCard(
@@ -3502,8 +3548,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                           _focusProperty(property, _FocusedPropertyLayout.list),
                     ),
                   ),
-                  if (property != widget.properties.last)
-                    const SizedBox(height: 12),
+                  if (property != properties.last) const SizedBox(height: 12),
                 ],
               ],
             ],
@@ -3852,6 +3897,184 @@ class _DeletePropertySheet extends StatelessWidget {
   }
 }
 
+class _PropertyFilterSheet extends StatelessWidget {
+  const _PropertyFilterSheet({
+    required this.statuses,
+    required this.selectedStatus,
+    required this.allStatusesValue,
+  });
+
+  final List<String> statuses;
+  final String? selectedStatus;
+  final String allStatusesValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: _GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Filter properties',
+                      style: TextStyle(
+                        fontFamily: AppFonts.cabinet,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink,
+                        letterSpacing: -0.8,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 23,
+                      color: AppColors.muted,
+                      strokeWidth: 1.7,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Show inventory by availability status.',
+                style: TextStyle(fontSize: 14, color: AppColors.muted),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _PropertyFilterChip(
+                    label: 'All',
+                    selected: selectedStatus == null,
+                    onTap: () => Navigator.of(context).pop(allStatusesValue),
+                  ),
+                  for (final status in statuses)
+                    _PropertyFilterChip(
+                      label: status,
+                      selected: selectedStatus == status,
+                      onTap: () => Navigator.of(context).pop(status),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PropertyFilterChip extends StatelessWidget {
+  const _PropertyFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.ink : AppColors.panel,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: selected ? AppColors.ink : Colors.white),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+            color: selected ? Colors.white : AppColors.muted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPropertyFilterState extends StatelessWidget {
+  const _EmptyPropertyFilterState({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        children: [
+          const _SoftIcon(
+            icon: HugeIcons.strokeRoundedFilterHorizontal,
+            size: 54,
+            iconSize: 25,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'No matching properties',
+            style: TextStyle(
+              fontFamily: AppFonts.cabinet,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+              letterSpacing: -0.7,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Clear the active filter to see the full inventory again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: AppColors.muted),
+          ),
+          const SizedBox(height: 14),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onClear,
+            child: Container(
+              height: 46,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              decoration: BoxDecoration(
+                color: AppColors.ink,
+                borderRadius: BorderRadius.circular(23),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Clear Filter',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class PropertyListing {
   const PropertyListing({
     required this.id,
@@ -4195,9 +4418,15 @@ class _ActivityTile extends StatelessWidget {
 }
 
 class _SearchFilterBar extends StatelessWidget {
-  const _SearchFilterBar({required this.hint});
+  const _SearchFilterBar({
+    required this.hint,
+    this.onFilterTap,
+    this.isFilterActive = false,
+  });
 
   final String hint;
+  final VoidCallback? onFilterTap;
+  final bool isFilterActive;
 
   @override
   Widget build(BuildContext context) {
@@ -4235,7 +4464,12 @@ class _SearchFilterBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const _CircleIconButton(icon: HugeIcons.strokeRoundedFilterHorizontal),
+        _CircleIconButton(
+          icon: HugeIcons.strokeRoundedFilterHorizontal,
+          color: isFilterActive ? AppColors.ink : AppColors.panel,
+          iconColor: isFilterActive ? Colors.white : AppColors.ink,
+          onTap: onFilterTap,
+        ),
       ],
     );
   }
@@ -5172,10 +5406,17 @@ class _ScreenHeader extends StatelessWidget {
 }
 
 class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({required this.icon, this.onTap});
+  const _CircleIconButton({
+    required this.icon,
+    this.onTap,
+    this.color,
+    this.iconColor,
+  });
 
   final List<List<dynamic>> icon;
   final VoidCallback? onTap;
+  final Color? color;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -5186,7 +5427,7 @@ class _CircleIconButton extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: AppColors.panel.withValues(alpha: 0.62),
+          color: color ?? AppColors.panel.withValues(alpha: 0.62),
           shape: BoxShape.circle,
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.88),
@@ -5197,7 +5438,7 @@ class _CircleIconButton extends StatelessWidget {
           child: HugeIcon(
             icon: icon,
             size: 24,
-            color: AppColors.ink,
+            color: iconColor ?? AppColors.ink,
             strokeWidth: 1.7,
           ),
         ),
