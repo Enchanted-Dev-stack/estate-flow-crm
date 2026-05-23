@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -1701,7 +1702,8 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
     with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
-  List<String> _capturedPhotoPaths = [];
+  final math.Random _deckRandom = math.Random();
+  List<_CapturedCameraPhoto> _capturedPhotos = [];
   bool _isInitializing = true;
   bool _isCapturing = false;
   bool _isPermissionPermanentlyDenied = false;
@@ -1820,7 +1822,12 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
           ? await _flipFrontCameraCapture(image.path)
           : image.path;
       if (!mounted) return;
-      setState(() => _capturedPhotoPaths = [..._capturedPhotoPaths, imagePath]);
+      setState(
+        () => _capturedPhotos = [
+          ..._capturedPhotos,
+          _CapturedCameraPhoto.random(path: imagePath, random: _deckRandom),
+        ],
+      );
     } on CameraException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1864,14 +1871,16 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
 
   void _removeCapture(String path) {
     setState(() {
-      _capturedPhotoPaths = _capturedPhotoPaths
-          .where((photoPath) => photoPath != path)
+      _capturedPhotos = _capturedPhotos
+          .where((photo) => photo.path != path)
           .toList();
     });
   }
 
   void _finishCapture() {
-    Navigator.of(context).pop(_capturedPhotoPaths);
+    Navigator.of(
+      context,
+    ).pop(_capturedPhotos.map((photo) => photo.path).toList());
   }
 
   @override
@@ -1887,9 +1896,9 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
               right: 16,
               top: 14,
               child: _CameraTopBar(
-                count: _capturedPhotoPaths.length,
+                count: _capturedPhotos.length,
                 onClose: () => Navigator.maybePop(context),
-                onDone: _capturedPhotoPaths.isEmpty ? null : _finishCapture,
+                onDone: _capturedPhotos.isEmpty ? null : _finishCapture,
               ),
             ),
             if (_controller?.value.isInitialized == true && _error == null)
@@ -1914,7 +1923,7 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
               right: 16,
               bottom: 16,
               child: _CameraBottomBar(
-                capturedPhotoPaths: _capturedPhotoPaths,
+                capturedPhotos: _capturedPhotos,
                 isCapturing: _isCapturing,
                 canSwitchCamera: _cameras.length > 1,
                 onCapture: _capturePhoto,
@@ -2212,9 +2221,39 @@ class _CameraTopBar extends StatelessWidget {
   }
 }
 
+class _CapturedCameraPhoto {
+  const _CapturedCameraPhoto({
+    required this.path,
+    required this.rotation,
+    required this.offset,
+    required this.scale,
+  });
+
+  factory _CapturedCameraPhoto.random({
+    required String path,
+    required math.Random random,
+  }) {
+    double randomBetween(double min, double max) {
+      return min + (random.nextDouble() * (max - min));
+    }
+
+    return _CapturedCameraPhoto(
+      path: path,
+      rotation: randomBetween(-0.18, 0.18),
+      offset: Offset(randomBetween(-7, 7), randomBetween(-4, 5)),
+      scale: randomBetween(0.96, 1.03),
+    );
+  }
+
+  final String path;
+  final double rotation;
+  final Offset offset;
+  final double scale;
+}
+
 class _CameraBottomBar extends StatelessWidget {
   const _CameraBottomBar({
-    required this.capturedPhotoPaths,
+    required this.capturedPhotos,
     required this.isCapturing,
     required this.canSwitchCamera,
     required this.onCapture,
@@ -2222,7 +2261,7 @@ class _CameraBottomBar extends StatelessWidget {
     required this.onRemoveCapture,
   });
 
-  final List<String> capturedPhotoPaths;
+  final List<_CapturedCameraPhoto> capturedPhotos;
   final bool isCapturing;
   final bool canSwitchCamera;
   final VoidCallback onCapture;
@@ -2264,10 +2303,10 @@ class _CameraBottomBar extends StatelessWidget {
           ),
         ),
         _CapturedPhotoDeck(
-          photoPaths: capturedPhotoPaths,
-          onRemoveLatest: capturedPhotoPaths.isEmpty
+          photos: capturedPhotos,
+          onRemoveLatest: capturedPhotos.isEmpty
               ? null
-              : () => onRemoveCapture(capturedPhotoPaths.last),
+              : () => onRemoveCapture(capturedPhotos.last.path),
         ),
       ],
     );
@@ -2275,20 +2314,20 @@ class _CameraBottomBar extends StatelessWidget {
 }
 
 class _CapturedPhotoDeck extends StatelessWidget {
-  const _CapturedPhotoDeck({required this.photoPaths, this.onRemoveLatest});
+  const _CapturedPhotoDeck({required this.photos, this.onRemoveLatest});
 
-  final List<String> photoPaths;
+  final List<_CapturedCameraPhoto> photos;
   final VoidCallback? onRemoveLatest;
 
   @override
   Widget build(BuildContext context) {
-    if (photoPaths.isEmpty) {
+    if (photos.isEmpty) {
       return const _CameraCircleButton(icon: HugeIcons.strokeRoundedImage01);
     }
 
-    final visiblePhotos = photoPaths.length <= 3
-        ? photoPaths
-        : photoPaths.sublist(photoPaths.length - 3);
+    final visiblePhotos = photos.length <= 3
+        ? photos
+        : photos.sublist(photos.length - 3);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -2307,14 +2346,14 @@ class _CapturedPhotoDeck extends StatelessWidget {
             );
           },
           child: Stack(
-            key: ValueKey(photoPaths.length),
+            key: ValueKey(photos.length),
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: [
               for (var index = 0; index < visiblePhotos.length; index++)
                 _CapturedDeckCard(
-                  path: visiblePhotos[index],
-                  index: index,
+                  photo: visiblePhotos[index],
+                  stackIndex: index,
                   total: visiblePhotos.length,
                 ),
               Positioned(
@@ -2330,7 +2369,7 @@ class _CapturedPhotoDeck extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    '${photoPaths.length}',
+                    '${photos.length}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
@@ -2349,28 +2388,30 @@ class _CapturedPhotoDeck extends StatelessWidget {
 
 class _CapturedDeckCard extends StatelessWidget {
   const _CapturedDeckCard({
-    required this.path,
-    required this.index,
+    required this.photo,
+    required this.stackIndex,
     required this.total,
   });
 
-  final String path;
-  final int index;
+  final _CapturedCameraPhoto photo;
+  final int stackIndex;
   final int total;
 
   @override
   Widget build(BuildContext context) {
-    final order = index - (total - 1);
-    final angle = [-0.16, 0.08, -0.04][index % 3];
-    final offset = Offset(order * 5.0, order.abs() * 3.0);
+    final isTopCard = stackIndex == total - 1;
+    final baseOffset = isTopCard
+        ? Offset.zero
+        : Offset((stackIndex - total + 1) * 4.0, stackIndex * 2.0);
+    final offset = baseOffset + photo.offset;
 
     return Transform.translate(
       offset: offset,
       child: Transform.rotate(
-        angle: angle,
+        angle: photo.rotation,
         child: Container(
-          width: 56,
-          height: 64,
+          width: 56 * photo.scale,
+          height: 64 * photo.scale,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
@@ -2385,7 +2426,7 @@ class _CapturedDeckCard extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(11),
-            child: Image.file(File(path), fit: BoxFit.cover),
+            child: Image.file(File(photo.path), fit: BoxFit.cover),
           ),
         ),
       ),
