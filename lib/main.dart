@@ -1816,11 +1816,16 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
 
     setState(() => _isCapturing = true);
     try {
+      final targetAspectRatio = _useFullscreenFrame
+          ? null
+          : _selectedFrameAspectRatio;
       final image = await controller.takePicture();
-      final imagePath =
-          controller.description.lensDirection == CameraLensDirection.front
-          ? await _flipFrontCameraCapture(image.path)
-          : image.path;
+      final imagePath = await _processCapturedImage(
+        path: image.path,
+        shouldFlip:
+            controller.description.lensDirection == CameraLensDirection.front,
+        targetAspectRatio: targetAspectRatio,
+      );
       final aspectRatio = await _readImageAspectRatio(imagePath);
       if (!mounted) return;
       setState(
@@ -1850,18 +1855,55 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
     }
   }
 
-  Future<String> _flipFrontCameraCapture(String path) async {
+  Future<String> _processCapturedImage({
+    required String path,
+    required bool shouldFlip,
+    required double? targetAspectRatio,
+  }) async {
+    if (!shouldFlip && targetAspectRatio == null) return path;
+
     final file = File(path);
     final bytes = await file.readAsBytes();
     final decodedImage = img.decodeImage(bytes);
     if (decodedImage == null) return path;
 
-    final fixedImage = img.flipHorizontal(decodedImage);
+    final fixedImage = shouldFlip
+        ? img.flipHorizontal(decodedImage)
+        : decodedImage;
+    final croppedImage = targetAspectRatio == null
+        ? fixedImage
+        : _centerCropImage(fixedImage, targetAspectRatio);
+
     await file.writeAsBytes(
-      img.encodeJpg(fixedImage, quality: 92),
+      img.encodeJpg(croppedImage, quality: 92),
       flush: true,
     );
     return path;
+  }
+
+  img.Image _centerCropImage(img.Image source, double targetAspectRatio) {
+    final sourceAspectRatio = source.width / source.height;
+    if ((sourceAspectRatio - targetAspectRatio).abs() < 0.01) return source;
+
+    var cropWidth = source.width;
+    var cropHeight = source.height;
+
+    if (sourceAspectRatio > targetAspectRatio) {
+      cropWidth = (source.height * targetAspectRatio).round();
+    } else {
+      cropHeight = (source.width / targetAspectRatio).round();
+    }
+
+    cropWidth = cropWidth.clamp(1, source.width);
+    cropHeight = cropHeight.clamp(1, source.height);
+
+    return img.copyCrop(
+      source,
+      x: ((source.width - cropWidth) / 2).round(),
+      y: ((source.height - cropHeight) / 2).round(),
+      width: cropWidth,
+      height: cropHeight,
+    );
   }
 
   Future<double> _readImageAspectRatio(String path) async {
