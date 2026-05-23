@@ -1898,6 +1898,8 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
     final updatedPhotos = await Navigator.of(context)
         .push<List<_CapturedCameraPhoto>>(
           PageRouteBuilder<List<_CapturedCameraPhoto>>(
+            opaque: false,
+            barrierColor: Colors.black.withValues(alpha: 0.42),
             pageBuilder: (context, animation, secondaryAnimation) =>
                 _CapturedPhotoGalleryScreen(photos: _capturedPhotos),
             transitionDuration: const Duration(milliseconds: 260),
@@ -1907,8 +1909,19 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
                   final curvedAnimation = CurvedAnimation(
                     parent: animation,
                     curve: Curves.easeOutCubic,
+                    reverseCurve: Curves.easeInCubic,
                   );
-                  return FadeTransition(opacity: curvedAnimation, child: child);
+                  final offsetAnimation = Tween<Offset>(
+                    begin: const Offset(0, 0.18),
+                    end: Offset.zero,
+                  ).animate(curvedAnimation);
+                  return FadeTransition(
+                    opacity: curvedAnimation,
+                    child: SlideTransition(
+                      position: offsetAnimation,
+                      child: child,
+                    ),
+                  );
                 },
           ),
         );
@@ -2535,68 +2548,101 @@ class _CapturedPhotoGalleryScreenState
 
   @override
   Widget build(BuildContext context) {
+    final panelMaxHeight = MediaQuery.sizeOf(context).height * 0.76;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _close();
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFF101211),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _CameraCircleButton(
-                      icon: HugeIcons.strokeRoundedArrowLeft02,
-                      onTap: _close,
+      child: Material(
+        color: Colors.transparent,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _close,
+          child: SafeArea(
+            top: false,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: Container(
+                  constraints: BoxConstraints(maxHeight: panelMaxHeight),
+                  margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101211),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.14),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        '${_photos.length} captured photo${_photos.length == 1 ? '' : 's'}',
-                        style: const TextStyle(
-                          fontFamily: AppFonts.cabinet,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -1,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${_photos.length} captured photo${_photos.length == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                fontFamily: AppFonts.cabinet,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.8,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _close,
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedCancel01,
+                                size: 24,
+                                color: Colors.white70,
+                                strokeWidth: 1.7,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Hold a photo for full view. Tap X to remove it.',
+                        style: TextStyle(fontSize: 13.5, color: Colors.white60),
+                      ),
+                      const SizedBox(height: 14),
+                      Flexible(
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 1,
+                              ),
+                          itemCount: _photos.length,
+                          itemBuilder: (context, index) {
+                            final photo = _photos[index];
+                            return _CapturedGalleryTile(
+                              photo: photo,
+                              index: index,
+                              onRemove: () => _removePhoto(photo),
+                              onFullView: () => _openFullView(photo),
+                            );
+                          },
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Hold a photo for full view. Tap X to remove it.',
-                  style: TextStyle(fontSize: 13.5, color: Colors.white60),
-                ),
-                const SizedBox(height: 18),
-                Expanded(
-                  child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                          childAspectRatio: 1,
-                        ),
-                    itemCount: _photos.length,
-                    itemBuilder: (context, index) {
-                      final photo = _photos[index];
-                      return _CapturedGalleryTile(
-                        photo: photo,
-                        index: index,
-                        onRemove: () => _removePhoto(photo),
-                        onFullView: () => _openFullView(photo),
-                      );
-                    },
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
