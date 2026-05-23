@@ -3387,8 +3387,8 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     return _propertyKeys.putIfAbsent(property.id, GlobalKey.new);
   }
 
-  void _openDetails(PropertyListing property) {
-    Navigator.of(context).push(
+  Future<void> _openDetails(PropertyListing property) async {
+    await Navigator.of(context).push(
       PageRouteBuilder<void>(
         pageBuilder: (context, animation, secondaryAnimation) =>
             PropertyDetailsScreen(property: property),
@@ -3438,6 +3438,12 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     widget.onShareProperty?.call(property);
   }
 
+  Future<void> _openFocusedDetails(PropertyListing property) async {
+    await _openDetails(property);
+    if (!mounted) return;
+    _clearFocusedProperty();
+  }
+
   Future<void> _confirmDeleteProperty(PropertyListing property) async {
     final shouldDelete = await showModalBottomSheet<bool>(
       context: context,
@@ -3456,49 +3462,52 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
 
     return Stack(
       children: [
-        AppScreen(
-          title: 'Properties',
-          subtitle: 'Inventory, availability and shareable listings',
-          actionIcon: HugeIcons.strokeRoundedAdd01,
-          onAddProperty: widget.onAddProperty,
-          children: [
-            const _SearchFilterBar(hint: 'Search location, budget or type'),
-            const SizedBox(height: 14),
-            _PropertyViewToggle(
-              isCardView: _isCardView,
-              onChanged: (value) => setState(() => _isCardView = value),
-            ),
-            const SizedBox(height: 14),
-            if (_isCardView) ...[
-              for (final property in widget.properties) ...[
-                KeyedSubtree(
-                  key: _propertyKey(property),
-                  child: _PropertyFeedCard(
-                    property: property,
-                    onTap: () => _openDetails(property),
-                    onLongPress: () =>
-                        _focusProperty(property, _FocusedPropertyLayout.card),
+        HeroMode(
+          enabled: focusedProperty == null,
+          child: AppScreen(
+            title: 'Properties',
+            subtitle: 'Inventory, availability and shareable listings',
+            actionIcon: HugeIcons.strokeRoundedAdd01,
+            onAddProperty: widget.onAddProperty,
+            children: [
+              const _SearchFilterBar(hint: 'Search location, budget or type'),
+              const SizedBox(height: 14),
+              _PropertyViewToggle(
+                isCardView: _isCardView,
+                onChanged: (value) => setState(() => _isCardView = value),
+              ),
+              const SizedBox(height: 14),
+              if (_isCardView) ...[
+                for (final property in widget.properties) ...[
+                  KeyedSubtree(
+                    key: _propertyKey(property),
+                    child: _PropertyFeedCard(
+                      property: property,
+                      onTap: () => _openDetails(property),
+                      onLongPress: () =>
+                          _focusProperty(property, _FocusedPropertyLayout.card),
+                    ),
                   ),
-                ),
-                if (property != widget.properties.last)
-                  const SizedBox(height: 12),
-              ],
-            ] else ...[
-              for (final property in widget.properties) ...[
-                KeyedSubtree(
-                  key: _propertyKey(property),
-                  child: _PropertyListCard(
-                    property: property,
-                    onTap: () => _openDetails(property),
-                    onLongPress: () =>
-                        _focusProperty(property, _FocusedPropertyLayout.list),
+                  if (property != widget.properties.last)
+                    const SizedBox(height: 12),
+                ],
+              ] else ...[
+                for (final property in widget.properties) ...[
+                  KeyedSubtree(
+                    key: _propertyKey(property),
+                    child: _PropertyListCard(
+                      property: property,
+                      onTap: () => _openDetails(property),
+                      onLongPress: () =>
+                          _focusProperty(property, _FocusedPropertyLayout.list),
+                    ),
                   ),
-                ),
-                if (property != widget.properties.last)
-                  const SizedBox(height: 12),
+                  if (property != widget.properties.last)
+                    const SizedBox(height: 12),
+                ],
               ],
             ],
-          ],
+          ),
         ),
         if (focusedProperty != null)
           _FocusedPropertyOverlay(
@@ -3506,10 +3515,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
             layout: _focusedLayout,
             sourceRect: _focusedSourceRect,
             onDismiss: _clearFocusedProperty,
-            onOpenDetails: () {
-              _clearFocusedProperty();
-              _openDetails(focusedProperty);
-            },
+            onOpenDetails: () => _openFocusedDetails(focusedProperty),
             onShare: () => _shareFocusedProperty(focusedProperty),
             onEdit: () => _editFocusedProperty(focusedProperty),
             onDelete: () => _confirmDeleteProperty(focusedProperty),
@@ -3620,12 +3626,10 @@ class _FocusedPropertyOverlay extends StatelessWidget {
                         ? _PropertyFeedCard(
                             property: property,
                             onTap: onOpenDetails,
-                            enableHero: false,
                           )
                         : _PropertyListCard(
                             property: property,
                             onTap: onOpenDetails,
-                            enableHero: false,
                           ),
                   ),
                 ),
@@ -4352,13 +4356,11 @@ class _PropertyListCard extends StatelessWidget {
     required this.property,
     required this.onTap,
     this.onLongPress,
-    this.enableHero = true,
   });
 
   final PropertyListing property;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  final bool enableHero;
 
   @override
   Widget build(BuildContext context) {
@@ -4371,9 +4373,8 @@ class _PropertyListCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: _OptionalHero(
+              child: Hero(
                 tag: property.heroTag,
-                enabled: enableHero,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: _PropertyImage(
@@ -4531,13 +4532,11 @@ class _PropertyFeedCard extends StatelessWidget {
     required this.property,
     required this.onTap,
     this.onLongPress,
-    this.enableHero = true,
   });
 
   final PropertyListing property;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  final bool enableHero;
 
   @override
   Widget build(BuildContext context) {
@@ -4571,9 +4570,8 @@ class _PropertyFeedCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _OptionalHero(
+                    Hero(
                       tag: property.heroTag,
-                      enabled: enableHero,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: _PropertyImage(
@@ -5048,24 +5046,6 @@ class _SoftIcon extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _OptionalHero extends StatelessWidget {
-  const _OptionalHero({
-    required this.tag,
-    required this.enabled,
-    required this.child,
-  });
-
-  final String tag;
-  final bool enabled;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-    return Hero(tag: tag, child: child);
   }
 }
 
