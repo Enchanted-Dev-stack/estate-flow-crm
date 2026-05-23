@@ -1821,11 +1821,16 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
           controller.description.lensDirection == CameraLensDirection.front
           ? await _flipFrontCameraCapture(image.path)
           : image.path;
+      final aspectRatio = await _readImageAspectRatio(imagePath);
       if (!mounted) return;
       setState(
         () => _capturedPhotos = [
           ..._capturedPhotos,
-          _CapturedCameraPhoto.random(path: imagePath, random: _deckRandom),
+          _CapturedCameraPhoto.random(
+            path: imagePath,
+            aspectRatio: aspectRatio,
+            random: _deckRandom,
+          ),
         ],
       );
     } on CameraException catch (error) {
@@ -1859,6 +1864,13 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
     return path;
   }
 
+  Future<double> _readImageAspectRatio(String path) async {
+    final bytes = await File(path).readAsBytes();
+    final decodedImage = img.decodeImage(bytes);
+    if (decodedImage == null || decodedImage.height == 0) return 1;
+    return decodedImage.width / decodedImage.height;
+  }
+
   Future<void> _switchCamera() async {
     if (_cameras.length < 2) return;
     final currentCamera = _controller?.description;
@@ -1875,6 +1887,23 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
           .where((photo) => photo.path != path)
           .toList();
     });
+    if (_capturedPhotos.isEmpty) {
+      Navigator.maybePop(context);
+    }
+  }
+
+  void _openCapturedPhotoReview() {
+    if (_capturedPhotos.isEmpty) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _CapturedPhotoReviewSheet(
+        photos: _capturedPhotos,
+        onRemove: _removeCapture,
+      ),
+    );
   }
 
   void _finishCapture() {
@@ -1929,6 +1958,7 @@ class _PropertyCameraScreenState extends State<PropertyCameraScreen>
                 onCapture: _capturePhoto,
                 onSwitchCamera: _switchCamera,
                 onRemoveCapture: _removeCapture,
+                onReviewCaptures: _openCapturedPhotoReview,
               ),
             ),
           ],
@@ -2224,6 +2254,7 @@ class _CameraTopBar extends StatelessWidget {
 class _CapturedCameraPhoto {
   const _CapturedCameraPhoto({
     required this.path,
+    required this.aspectRatio,
     required this.rotation,
     required this.offset,
     required this.scale,
@@ -2231,6 +2262,7 @@ class _CapturedCameraPhoto {
 
   factory _CapturedCameraPhoto.random({
     required String path,
+    required double aspectRatio,
     required math.Random random,
   }) {
     double randomBetween(double min, double max) {
@@ -2239,6 +2271,7 @@ class _CapturedCameraPhoto {
 
     return _CapturedCameraPhoto(
       path: path,
+      aspectRatio: aspectRatio,
       rotation: randomBetween(-0.18, 0.18),
       offset: Offset(randomBetween(-7, 7), randomBetween(-4, 5)),
       scale: randomBetween(0.96, 1.03),
@@ -2246,6 +2279,7 @@ class _CapturedCameraPhoto {
   }
 
   final String path;
+  final double aspectRatio;
   final double rotation;
   final Offset offset;
   final double scale;
@@ -2259,6 +2293,7 @@ class _CameraBottomBar extends StatelessWidget {
     required this.onCapture,
     required this.onSwitchCamera,
     required this.onRemoveCapture,
+    required this.onReviewCaptures,
   });
 
   final List<_CapturedCameraPhoto> capturedPhotos;
@@ -2267,6 +2302,7 @@ class _CameraBottomBar extends StatelessWidget {
   final VoidCallback onCapture;
   final VoidCallback onSwitchCamera;
   final ValueChanged<String> onRemoveCapture;
+  final VoidCallback onReviewCaptures;
 
   @override
   Widget build(BuildContext context) {
@@ -2304,6 +2340,7 @@ class _CameraBottomBar extends StatelessWidget {
         ),
         _CapturedPhotoDeck(
           photos: capturedPhotos,
+          onTap: capturedPhotos.isEmpty ? null : onReviewCaptures,
           onRemoveLatest: capturedPhotos.isEmpty
               ? null
               : () => onRemoveCapture(capturedPhotos.last.path),
@@ -2314,9 +2351,14 @@ class _CameraBottomBar extends StatelessWidget {
 }
 
 class _CapturedPhotoDeck extends StatelessWidget {
-  const _CapturedPhotoDeck({required this.photos, this.onRemoveLatest});
+  const _CapturedPhotoDeck({
+    required this.photos,
+    this.onTap,
+    this.onRemoveLatest,
+  });
 
   final List<_CapturedCameraPhoto> photos;
+  final VoidCallback? onTap;
   final VoidCallback? onRemoveLatest;
 
   @override
@@ -2331,6 +2373,7 @@ class _CapturedPhotoDeck extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       onLongPress: onRemoveLatest,
       child: SizedBox(
         width: 72,
@@ -2430,6 +2473,314 @@ class _CapturedDeckCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CapturedPhotoReviewSheet extends StatelessWidget {
+  const _CapturedPhotoReviewSheet({
+    required this.photos,
+    required this.onRemove,
+  });
+
+  final List<_CapturedCameraPhoto> photos;
+  final ValueChanged<String> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.76,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF101211),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '${photos.length} captured photo${photos.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.8,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.maybePop(context),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 24,
+                      color: Colors.white70,
+                      strokeWidth: 1.7,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Hold a photo for full view. Tap X to remove it.',
+                style: TextStyle(fontSize: 13.5, color: Colors.white60),
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: photos.length,
+                  itemBuilder: (context, index) {
+                    final photo = photos[index];
+                    return _CapturedReviewTile(
+                      photo: photo,
+                      index: index,
+                      onRemove: () => onRemove(photo.path),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CapturedReviewTile extends StatelessWidget {
+  const _CapturedReviewTile({
+    required this.photo,
+    required this.index,
+    required this.onRemove,
+  });
+
+  final _CapturedCameraPhoto photo;
+  final int index;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => _openFullView(context),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Image.file(File(photo.path), fit: BoxFit.cover),
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.18),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.34),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 10,
+            bottom: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.46),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                '#${index + 1}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 8,
+            top: 8,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRemove,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedCancel01,
+                    size: 16,
+                    color: AppColors.ink,
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openFullView(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+    final sourceRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.92),
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            _CapturedPhotoFullView(photo: photo, sourceRect: sourceRect),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            child,
+      ),
+    );
+  }
+}
+
+class _CapturedPhotoFullView extends StatelessWidget {
+  const _CapturedPhotoFullView({required this.photo, required this.sourceRect});
+
+  final _CapturedCameraPhoto photo;
+  final Rect sourceRect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.maybePop(context),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: _CapturedPhotoMorph(photo: photo, sourceRect: sourceRect),
+            ),
+            Positioned(
+              right: 18,
+              top: 18,
+              child: SafeArea(
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 22,
+                      color: AppColors.ink,
+                      strokeWidth: 1.8,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CapturedPhotoMorph extends StatelessWidget {
+  const _CapturedPhotoMorph({required this.photo, required this.sourceRect});
+
+  final _CapturedCameraPhoto photo;
+  final Rect sourceRect;
+
+  @override
+  Widget build(BuildContext context) {
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    final screenSize = MediaQuery.sizeOf(context);
+    final imageRect = _targetImageRect(screenSize, photo.aspectRatio);
+
+    return AnimatedBuilder(
+      animation: routeAnimation ?? kAlwaysCompleteAnimation,
+      builder: (context, child) {
+        final progress = Curves.easeOutCubic.transform(
+          routeAnimation?.value ?? 1,
+        );
+        final rect = Rect.lerp(sourceRect, imageRect, progress)!;
+        final radius = lerpDouble(22, 0, progress)!;
+
+        return Stack(
+          children: [
+            Positioned.fromRect(
+              rect: rect,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(radius),
+                child: InteractiveViewer(
+                  minScale: 0.75,
+                  maxScale: 4,
+                  child: SizedBox.expand(
+                    child: Image.file(File(photo.path), fit: BoxFit.cover),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Rect _targetImageRect(Size screenSize, double aspectRatio) {
+    final horizontalPadding = 18.0;
+    final verticalPadding = 74.0;
+    final maxWidth = screenSize.width - (horizontalPadding * 2);
+    final maxHeight = screenSize.height - (verticalPadding * 2);
+    var width = maxWidth;
+    var height = width / aspectRatio;
+
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspectRatio;
+    }
+
+    return Rect.fromLTWH(
+      (screenSize.width - width) / 2,
+      (screenSize.height - height) / 2,
+      width,
+      height,
     );
   }
 }
