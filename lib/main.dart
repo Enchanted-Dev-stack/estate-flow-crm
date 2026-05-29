@@ -4146,38 +4146,159 @@ class _PropertyImage extends StatelessWidget {
   }
 }
 
-class FollowUpsScreen extends StatelessWidget {
+class FollowUpsScreen extends StatefulWidget {
   const FollowUpsScreen({this.onAddProperty, super.key});
 
   final VoidCallback? onAddProperty;
 
   @override
+  State<FollowUpsScreen> createState() => _FollowUpsScreenState();
+}
+
+class _FollowUpsScreenState extends State<FollowUpsScreen> {
+  static const _liveFeedProperty = PropertyListing(
+    id: 'live-feed-single-family',
+    title: 'Single Family Residential',
+    location: '305 Pomona Ave, Coronado, CA. 92118',
+    price: r'$2,500,000',
+    oldPrice: r'$2,550,000',
+    status: 'Sale',
+    image:
+        'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90',
+    tagColor: Color(0xFFE56775),
+  );
+
+  Future<void> _refreshFeed() async {
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Live feed updated')));
+  }
+
+  Future<void> _openPropertyDetails() async {
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const PropertyDetailsScreen(property: _liveFeedProperty),
+        transitionDuration: const Duration(milliseconds: 260),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curvedAnimation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _openActivitySheet({
+    required String name,
+    required String subtitle,
+    required String status,
+  }) {
+    _showLiveFeedSheet(
+      _LiveFeedInfoSheet(
+        icon: HugeIcons.strokeRoundedTask01,
+        title: name,
+        subtitle: subtitle,
+        meta: 'Tu, 25.03 · 1:23 pm · $status',
+        primaryAction: 'Open activity',
+      ),
+    );
+  }
+
+  void _openActionSheet({
+    required List<List<dynamic>> icon,
+    required String title,
+    required String subtitle,
+    required String primaryAction,
+  }) {
+    _showLiveFeedSheet(
+      _LiveFeedInfoSheet(
+        icon: icon,
+        title: title,
+        subtitle: subtitle,
+        meta: 'Prepared from live feed context',
+        primaryAction: primaryAction,
+      ),
+    );
+  }
+
+  void _openAgentSheet(String name, String avatar, String role) {
+    _showLiveFeedSheet(
+      _LiveFeedAgentSheet(name: name, avatar: avatar, role: role),
+    );
+  }
+
+  void _openViewerSheet() {
+    _showLiveFeedSheet(const _LiveFeedViewerSheet());
+  }
+
+  void _openFilterSheet() {
+    _showLiveFeedSheet(
+      const _LiveFeedInfoSheet(
+        icon: HugeIcons.strokeRoundedFilterHorizontal,
+        title: 'Feed filters',
+        subtitle:
+            'Filter this feed by property views, calls, emails, assignments, and creation events.',
+        meta: 'All activity types are visible right now',
+        primaryAction: 'Keep all visible',
+      ),
+    );
+  }
+
+  void _showLiveFeedSheet(Widget child) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => child,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFFEFF6F5),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 112),
-        children: const [
-          _LiveFeedHeader(),
-          SizedBox(height: 22),
-          _LiveOnlineRow(),
-          SizedBox(height: 14),
-          _LiveFeedTimeline(),
-        ],
+      child: RefreshIndicator(
+        color: AppColors.green,
+        onRefresh: _refreshFeed,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 112),
+          children: [
+            _LiveFeedHeader(onFilterTap: _openFilterSheet),
+            const SizedBox(height: 22),
+            _LiveOnlineRow(onAvatarTap: _openAgentSheet),
+            const SizedBox(height: 14),
+            _LiveFeedTimeline(
+              property: _liveFeedProperty,
+              onPropertyTap: _openPropertyDetails,
+              onViewerTap: _openViewerSheet,
+              onAgentTap: _openAgentSheet,
+              onActivityTap: _openActivitySheet,
+              onActionTap: _openActionSheet,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _LiveFeedHeader extends StatelessWidget {
-  const _LiveFeedHeader();
+  const _LiveFeedHeader({required this.onFilterTap});
+
+  final VoidCallback onFilterTap;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
-        _LiveFeedIconButton(icon: HugeIcons.strokeRoundedMenu01),
-        Expanded(
+      children: [
+        const _LiveFeedIconButton(icon: HugeIcons.strokeRoundedMenu01),
+        const Expanded(
           child: Center(
             child: Text(
               'Live Feed',
@@ -4190,33 +4311,41 @@ class _LiveFeedHeader extends StatelessWidget {
             ),
           ),
         ),
-        _LiveFeedIconButton(icon: HugeIcons.strokeRoundedArchive02),
+        _LiveFeedIconButton(
+          icon: HugeIcons.strokeRoundedArchive02,
+          onTap: onFilterTap,
+        ),
       ],
     );
   }
 }
 
 class _LiveFeedIconButton extends StatelessWidget {
-  const _LiveFeedIconButton({required this.icon});
+  const _LiveFeedIconButton({required this.icon, this.onTap});
 
   final List<List<dynamic>> icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.66),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.86)),
-      ),
-      child: Center(
-        child: HugeIcon(
-          icon: icon,
-          size: 19,
-          color: AppColors.ink,
-          strokeWidth: 1.8,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.66),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.86)),
+        ),
+        child: Center(
+          child: HugeIcon(
+            icon: icon,
+            size: 19,
+            color: AppColors.ink,
+            strokeWidth: 1.8,
+          ),
         ),
       ),
     );
@@ -4224,12 +4353,20 @@ class _LiveFeedIconButton extends StatelessWidget {
 }
 
 class _LiveOnlineRow extends StatelessWidget {
-  const _LiveOnlineRow();
+  const _LiveOnlineRow({required this.onAvatarTap});
+
+  final void Function(String name, String avatar, String role) onAvatarTap;
 
   static const _avatars = [
     'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=90',
     'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=90',
     'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=160&q=90',
+  ];
+  static const _names = ['Megan Pearce', 'Logan Davidson', 'Aman Verma'];
+  static const _roles = [
+    'Lead · online now',
+    'Agent · sending follow-ups',
+    'Broker · reviewing inventory',
   ];
 
   @override
@@ -4260,6 +4397,11 @@ class _LiveOnlineRow extends StatelessWidget {
                   child: _LiveFeedAvatar(
                     image: _avatars[index],
                     showBadge: index == 0,
+                    onTap: () => onAvatarTap(
+                      _names[index],
+                      _avatars[index],
+                      _roles[index],
+                    ),
                   ),
                 ),
             ],
@@ -4271,41 +4413,117 @@ class _LiveOnlineRow extends StatelessWidget {
 }
 
 class _LiveFeedTimeline extends StatelessWidget {
-  const _LiveFeedTimeline();
+  const _LiveFeedTimeline({
+    required this.property,
+    required this.onPropertyTap,
+    required this.onViewerTap,
+    required this.onAgentTap,
+    required this.onActivityTap,
+    required this.onActionTap,
+  });
+
+  final PropertyListing property;
+  final VoidCallback onPropertyTap;
+  final VoidCallback onViewerTap;
+  final void Function(String name, String avatar, String role) onAgentTap;
+  final void Function({
+    required String name,
+    required String subtitle,
+    required String status,
+  })
+  onActivityTap;
+  final void Function({
+    required List<List<dynamic>> icon,
+    required String title,
+    required String subtitle,
+    required String primaryAction,
+  })
+  onActionTap;
 
   @override
   Widget build(BuildContext context) {
+    const loganAvatar =
+        'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=90';
+    const meganAvatar =
+        'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=90';
+
     return Column(
-      children: const [
+      children: [
         _LiveTimelineEntry(
           icon: HugeIcons.strokeRoundedFlag01,
-          child: _LivePropertyFeedCard(),
+          child: _LivePropertyFeedCard(
+            property: property,
+            onTap: onPropertyTap,
+            onViewerTap: onViewerTap,
+          ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         _LiveTimelineEntry(
           icon: HugeIcons.strokeRoundedTarget02,
           child: _LiveActivityFeedCard(
-            avatar:
-                'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=90',
+            avatar: loganAvatar,
             name: 'Logan Davidson',
             subtitle: 'Follow up mail',
             leadingTag: 'Agent',
             trailingTag: 'Created',
             primaryIcon: HugeIcons.strokeRoundedMail01,
+            onTap: () => onActivityTap(
+              name: 'Logan Davidson',
+              subtitle: 'Follow up mail',
+              status: 'Created',
+            ),
+            onAvatarTap: () => onAgentTap(
+              'Logan Davidson',
+              loganAvatar,
+              'Agent · follow-up specialist',
+            ),
+            onPrimaryAction: () => onActionTap(
+              icon: HugeIcons.strokeRoundedMail01,
+              title: 'Send follow-up mail',
+              subtitle:
+                  'Prepare an email to Logan with the viewed property details and next steps.',
+              primaryAction: 'Compose mail',
+            ),
+            onExpand: () => onActivityTap(
+              name: 'Logan Davidson',
+              subtitle: 'Follow up mail',
+              status: 'Created',
+            ),
           ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         _LiveTimelineEntry(
           icon: HugeIcons.strokeRoundedTarget02,
           child: _LiveActivityFeedCard(
-            avatar:
-                'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=90',
+            avatar: meganAvatar,
             name: 'Megan Pearce',
             subtitle: 'First customer call',
             leadingTag: 'Lead',
             middleTag: '11:09 am',
             trailingTag: 'Was Assigned',
             primaryIcon: HugeIcons.strokeRoundedCall02,
+            onTap: () => onActivityTap(
+              name: 'Megan Pearce',
+              subtitle: 'First customer call',
+              status: 'Was Assigned',
+            ),
+            onAvatarTap: () => onAgentTap(
+              'Megan Pearce',
+              meganAvatar,
+              'Lead · first call pending',
+            ),
+            onPrimaryAction: () => onActionTap(
+              icon: HugeIcons.strokeRoundedCall02,
+              title: 'Call Megan Pearce',
+              subtitle:
+                  'Start the first customer call and log the outcome back into the live feed.',
+              primaryAction: 'Start call',
+            ),
+            onExpand: () => onActivityTap(
+              name: 'Megan Pearce',
+              subtitle: 'First customer call',
+              status: 'Was Assigned',
+            ),
           ),
         ),
       ],
@@ -4374,100 +4592,116 @@ class _LiveTimelineEntry extends StatelessWidget {
 }
 
 class _LivePropertyFeedCard extends StatelessWidget {
-  const _LivePropertyFeedCard();
+  const _LivePropertyFeedCard({
+    required this.property,
+    required this.onTap,
+    required this.onViewerTap,
+  });
+
+  final PropertyListing property;
+  final VoidCallback onTap;
+  final VoidCallback onViewerTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF9BAEAE).withValues(alpha: 0.18),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 1.62,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=90',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        Container(color: AppColors.line),
-                  ),
-                  Positioned(
-                    left: 13,
-                    top: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE56775),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Text(
-                        'Sale',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF9BAEAE).withValues(alpha: 0.18),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 1.62,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Hero(
+                      tag: property.heroTag,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: _PropertyImage(
+                          property: property,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
-                  ),
+                    Positioned(
+                      left: 13,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE56775),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Text(
+                          'Sale',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'Single Family Residential',
+                style: TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.75,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                '305 Pomona Ave, Coronado, CA. 92118',
+                style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 4, 4),
+              child: Row(
+                children: [
+                  const _LiveFeedPill(label: 'Property Viewed'),
+                  const Spacer(),
+                  _LiveViewerStack(onTap: onViewerTap),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              'Single Family Residential',
-              style: TextStyle(
-                fontFamily: AppFonts.cabinet,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
-                letterSpacing: -0.75,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              '305 Pomona Ave, Coronado, CA. 92118',
-              style: TextStyle(fontSize: 12.5, color: AppColors.muted),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 4, 4),
-            child: Row(
-              children: const [
-                _LiveFeedPill(label: 'Property Viewed'),
-                Spacer(),
-                _LiveViewerStack(),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4481,6 +4715,10 @@ class _LiveActivityFeedCard extends StatelessWidget {
     required this.leadingTag,
     required this.trailingTag,
     required this.primaryIcon,
+    required this.onTap,
+    required this.onAvatarTap,
+    required this.onPrimaryAction,
+    required this.onExpand,
     this.middleTag,
   });
 
@@ -4491,64 +4729,75 @@ class _LiveActivityFeedCard extends StatelessWidget {
   final String? middleTag;
   final String trailingTag;
   final List<List<dynamic>> primaryIcon;
+  final VoidCallback onTap;
+  final VoidCallback onAvatarTap;
+  final VoidCallback onPrimaryAction;
+  final VoidCallback onExpand;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _LiveFeedAvatar(image: avatar, size: 36),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.ink,
-                        letterSpacing: -0.25,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                _LiveFeedAvatar(image: avatar, size: 36, onTap: onAvatarTap),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                          letterSpacing: -0.25,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.muted,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              _LiveSmallAction(icon: primaryIcon),
-              const SizedBox(width: 8),
-              const _LiveSmallAction(icon: HugeIcons.strokeRoundedArrowExpand),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _LiveFeedPill(label: leadingTag),
-              if (middleTag != null) ...[
-                const SizedBox(width: 6),
-                _LiveFeedPill(label: middleTag!),
+                _LiveSmallAction(icon: primaryIcon, onTap: onPrimaryAction),
+                const SizedBox(width: 8),
+                _LiveSmallAction(
+                  icon: HugeIcons.strokeRoundedArrowExpand,
+                  onTap: onExpand,
+                ),
               ],
-              const Spacer(),
-              _LiveFeedPill(label: trailingTag),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                _LiveFeedPill(label: leadingTag),
+                if (middleTag != null) ...[
+                  const SizedBox(width: 6),
+                  _LiveFeedPill(label: middleTag!),
+                ],
+                const Spacer(),
+                _LiveFeedPill(label: trailingTag),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4559,83 +4808,95 @@ class _LiveFeedAvatar extends StatelessWidget {
     required this.image,
     this.size = 34,
     this.showBadge = false,
+    this.onTap,
   });
 
   final String image;
   final double size;
   final bool showBadge;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            image: DecorationImage(
-              image: NetworkImage(image),
-              fit: BoxFit.cover,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              image: DecorationImage(
+                image: NetworkImage(image),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-        ),
-        if (showBadge)
-          Positioned(
-            left: -1,
-            top: -9,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF25C268),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'New',
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
+          if (showBadge)
+            Positioned(
+              left: -1,
+              top: -9,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF25C268),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'New',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 class _LiveViewerStack extends StatelessWidget {
-  const _LiveViewerStack();
+  const _LiveViewerStack({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 86,
-      height: 38,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: const [
-          Positioned(left: 0, child: _LiveViewerCount()),
-          Positioned(
-            left: 31,
-            child: _LiveFeedAvatar(
-              image:
-                  'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=90',
-              size: 34,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        width: 86,
+        height: 38,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: const [
+            Positioned(left: 0, child: _LiveViewerCount()),
+            Positioned(
+              left: 31,
+              child: _LiveFeedAvatar(
+                image:
+                    'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=90',
+                size: 34,
+              ),
             ),
-          ),
-          Positioned(
-            left: 55,
-            child: _LiveFeedAvatar(
-              image:
-                  'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=90',
-              size: 34,
+            Positioned(
+              left: 55,
+              child: _LiveFeedAvatar(
+                image:
+                    'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=90',
+                size: 34,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4693,26 +4954,364 @@ class _LiveFeedPill extends StatelessWidget {
 }
 
 class _LiveSmallAction extends StatelessWidget {
-  const _LiveSmallAction({required this.icon});
+  const _LiveSmallAction({required this.icon, required this.onTap});
 
   final List<List<dynamic>> icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F6F5),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F6F5),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+        ),
+        child: Center(
+          child: HugeIcon(
+            icon: icon,
+            size: 15,
+            color: AppColors.ink,
+            strokeWidth: 1.8,
+          ),
+        ),
       ),
-      child: Center(
-        child: HugeIcon(
-          icon: icon,
-          size: 15,
-          color: AppColors.ink,
-          strokeWidth: 1.8,
+    );
+  }
+}
+
+class _LiveFeedInfoSheet extends StatelessWidget {
+  const _LiveFeedInfoSheet({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.meta,
+    required this.primaryAction,
+  });
+
+  final List<List<dynamic>> icon;
+  final String title;
+  final String subtitle;
+  final String meta;
+  final String primaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: _GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _SoftIcon(icon: icon, size: 48, iconSize: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: AppFonts.cabinet,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          meta,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.muted,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 18),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).maybePop(),
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.ink,
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    primaryAction,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveFeedAgentSheet extends StatelessWidget {
+  const _LiveFeedAgentSheet({
+    required this.name,
+    required this.avatar,
+    required this.role,
+  });
+
+  final String name;
+  final String avatar;
+  final String role;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: _GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _LiveFeedAvatar(image: avatar, size: 58),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontFamily: AppFonts.cabinet,
+                            fontSize: 25,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                            letterSpacing: -0.9,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          role,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _LiveSheetAction(
+                      icon: HugeIcons.strokeRoundedCall02,
+                      label: 'Call',
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _LiveSheetAction(
+                      icon: HugeIcons.strokeRoundedMessage01,
+                      label: 'Message',
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveFeedViewerSheet extends StatelessWidget {
+  const _LiveFeedViewerSheet();
+
+  static const _viewers = [
+    (
+      'Logan Davidson',
+      'Agent',
+      'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=160&q=90',
+    ),
+    (
+      'Megan Pearce',
+      'Lead',
+      'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=90',
+    ),
+    (
+      'Priya Mehta',
+      'Buyer',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=90',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        child: _GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Viewed by',
+                style: TextStyle(
+                  fontFamily: AppFonts.cabinet,
+                  fontSize: 25,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: -0.9,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '8 people viewed this property in the latest activity window.',
+                style: TextStyle(fontSize: 13.5, color: AppColors.muted),
+              ),
+              const SizedBox(height: 16),
+              for (final viewer in _viewers) ...[
+                _LiveViewerRow(
+                  name: viewer.$1,
+                  role: viewer.$2,
+                  avatar: viewer.$3,
+                ),
+                if (viewer != _viewers.last) const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveViewerRow extends StatelessWidget {
+  const _LiveViewerRow({
+    required this.name,
+    required this.role,
+    required this.avatar,
+  });
+
+  final String name;
+  final String role;
+  final String avatar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _LiveFeedAvatar(image: avatar, size: 42),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                role,
+                style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
+            ],
+          ),
+        ),
+        const _LiveFeedPill(label: 'Viewed'),
+      ],
+    );
+  }
+}
+
+class _LiveSheetAction extends StatelessWidget {
+  const _LiveSheetAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final List<List<dynamic>> icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: AppColors.mint.withValues(alpha: 0.82),
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            HugeIcon(
+              icon: icon,
+              size: 18,
+              color: AppColors.ink,
+              strokeWidth: 1.8,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: AppColors.ink,
+              ),
+            ),
+          ],
         ),
       ),
     );
