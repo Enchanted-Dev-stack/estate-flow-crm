@@ -28,6 +28,8 @@
 	<string>EstateFlow uses the camera to add property photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>EstateFlow uses your photo library to attach property photos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EstateFlow uses your location to show nearby property map context.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

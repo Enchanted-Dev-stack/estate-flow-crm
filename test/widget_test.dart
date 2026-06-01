@@ -85,15 +85,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(FlutterMap), findsOneWidget);
-    expect(find.text('Location detail'), findsOneWidget);
+    expect(find.text('Location detail'), findsNothing);
     expect(find.text('1 Hospital'), findsNothing);
     expect(find.text('2 Gas stations'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_MapCircleButton',
+      ),
+      findsNWidgets(2),
+    );
     expect(
       find.byWidgetPredicate(
         (widget) => widget.runtimeType.toString() == '_BottomNavBar',
       ),
       findsNothing,
     );
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == '_MapPropertyMarker',
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Location detail'), findsOneWidget);
+    expect(find.text('305 Pomona Ave, Coronado, CA. 92118'), findsNothing);
   });
 
   testWidgets('popping map route restores shell navigation', (
@@ -111,7 +129,13 @@ void main() {
     expect(find.byType(FlutterMap), findsOneWidget);
     expect(bottomNavFinder, findsNothing);
 
-    Navigator.of(tester.element(find.byType(MapScreen))).pop();
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) => widget.runtimeType.toString() == '_MapCircleButton',
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('EstateFlow'), findsOneWidget);

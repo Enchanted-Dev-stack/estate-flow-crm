@@ -4239,16 +4239,24 @@ class _MapScreenState extends State<MapScreen> {
   static const _defaultCenter = LatLng(32.6859, -117.1831);
 
   final MapController _mapController = MapController();
-  int _selectedIndex = 0;
+  int? _selectedIndex;
 
-  PropertyListing get _selectedProperty {
-    if (widget.properties.isEmpty) {
-      return PropertyDetailsScreen.fallbackProperty;
-    }
-    return widget.properties[_selectedIndex.clamp(
+  PropertyListing? get _selectedProperty {
+    final selectedIndex = _selectedIndex;
+    if (selectedIndex == null || widget.properties.isEmpty) return null;
+
+    return widget.properties[selectedIndex.clamp(
       0,
       widget.properties.length - 1,
     )];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureLocationPermission();
+    });
   }
 
   @override
@@ -4280,6 +4288,37 @@ class _MapScreenState extends State<MapScreen> {
     if (coordinate != null) _mapController.move(coordinate, 14);
   }
 
+  Future<void> _ensureLocationPermission() async {
+    try {
+      final status = await Permission.locationWhenInUse.status;
+      if (!mounted || status.isGranted || status.isLimited) return;
+
+      if (status.isPermanentlyDenied) {
+        _showLocationSettingsMessage();
+        return;
+      }
+
+      final requestedStatus = await Permission.locationWhenInUse.request();
+      if (!mounted) return;
+      if (requestedStatus.isPermanentlyDenied) {
+        _showLocationSettingsMessage();
+      }
+    } catch (_) {
+      // Permission plugins are unavailable in widget tests and some desktop runs.
+    }
+  }
+
+  void _showLocationSettingsMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Enable location permission to use nearby map tools',
+        ),
+        action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+      ),
+    );
+  }
+
   Future<void> _openDetails(PropertyListing property) async {
     await Navigator.of(context).push(
       PageRouteBuilder<void>(
@@ -4299,43 +4338,34 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _centerSelectedProperty() {
-    final coordinate = _coordinateFor(_selectedProperty);
+    final selectedProperty = _selectedProperty;
+    if (selectedProperty == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a property marker first')),
+      );
+      return;
+    }
+
+    final coordinate = _coordinateFor(selectedProperty);
     if (coordinate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_selectedProperty.title} has no map pin yet'),
-        ),
+        SnackBar(content: Text('${selectedProperty.title} has no map pin yet')),
       );
       return;
     }
 
     _mapController.move(coordinate, 14);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Centered on ${_selectedProperty.title}')),
+      SnackBar(content: Text('Centered on ${selectedProperty.title}')),
     );
-  }
-
-  Future<void> _openLocationSelector() async {
-    final selectedProperty = await showModalBottomSheet<PropertyListing>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _MapLocationSelectorSheet(
-        properties: widget.properties,
-        selectedProperty: _selectedProperty,
-      ),
-    );
-    if (selectedProperty == null || !mounted) return;
-
-    final index = widget.properties.indexWhere(
-      (property) => property.id == selectedProperty.id,
-    );
-    if (index != -1) _selectProperty(index);
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedProperty = _selectedProperty;
-    final selectedCoordinate = _coordinateFor(selectedProperty);
+    final selectedCoordinate = selectedProperty == null
+        ? null
+        : _coordinateFor(selectedProperty);
     final mapCenter = selectedCoordinate ?? _defaultCenter;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final userCoordinate = selectedCoordinate == null
@@ -4412,8 +4442,9 @@ class _MapScreenState extends State<MapScreen> {
                           child: _MapPropertyMarker(
                             property: widget.properties[index],
                             selected:
+                                selectedProperty != null &&
                                 widget.properties[index].id ==
-                                selectedProperty.id,
+                                    selectedProperty.id,
                             onTap: () => _selectProperty(index),
                           ),
                         ),
@@ -4445,31 +4476,32 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
           Positioned(
-            left: 28,
-            bottom: bottomInset + 142,
-            child: _MapLocationPill(
-              label: selectedProperty.mapAddress ?? selectedProperty.location,
-              onTap: _openLocationSelector,
+            left: 14,
+            top: MediaQuery.paddingOf(context).top + 14,
+            child: _MapCircleButton(
+              icon: HugeIcons.strokeRoundedArrowLeft02,
+              onTap: () => Navigator.of(context).maybePop(),
             ),
           ),
           Positioned(
             right: 20,
-            bottom: bottomInset + 136,
+            bottom: bottomInset + (selectedProperty == null ? 24 : 136),
             child: _MapCircleButton(
               icon: HugeIcons.strokeRoundedGps01,
               dark: true,
               onTap: _centerSelectedProperty,
             ),
           ),
-          Positioned(
-            left: 18,
-            right: 18,
-            bottom: bottomInset + 14,
-            child: _MapLocationDetailCard(
-              property: selectedProperty,
-              onTap: () => _openDetails(selectedProperty),
+          if (selectedProperty != null)
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: bottomInset + 14,
+              child: _MapLocationDetailCard(
+                property: selectedProperty,
+                onTap: () => _openDetails(selectedProperty),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -4613,61 +4645,6 @@ class _MapUserMarker extends StatelessWidget {
   }
 }
 
-class _MapLocationPill extends StatelessWidget {
-  const _MapLocationPill({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 210),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const HugeIcon(
-              icon: HugeIcons.strokeRoundedLocation01,
-              size: 18,
-              color: Color(0xFF1D5477),
-              strokeWidth: 1.8,
-            ),
-            const SizedBox(width: 9),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF2F3F65),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            const HugeIcon(
-              icon: HugeIcons.strokeRoundedArrowDown01,
-              size: 14,
-              color: Color(0xFF8C7DFF),
-              strokeWidth: 2,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _MapLocationDetailCard extends StatelessWidget {
   const _MapLocationDetailCard({required this.property, required this.onTap});
 
@@ -4761,17 +4738,6 @@ class _MapLocationDetailCard extends StatelessWidget {
                       letterSpacing: -0.6,
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    property.mapAddress ?? property.location,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.muted,
-                    ),
-                  ),
                   const SizedBox(height: 7),
                   Text(
                     property.price,
@@ -4782,137 +4748,6 @@ class _MapLocationDetailCard extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapLocationSelectorSheet extends StatelessWidget {
-  const _MapLocationSelectorSheet({
-    required this.properties,
-    required this.selectedProperty,
-  });
-
-  final List<PropertyListing> properties;
-  final PropertyListing selectedProperty;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(14),
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-      decoration: BoxDecoration(
-        color: AppColors.canvas,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 46,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: AppColors.line,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Choose map location',
-              style: TextStyle(
-                fontFamily: AppFonts.cabinet,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
-                letterSpacing: -0.7,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: properties.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final property = properties[index];
-                  final selected = property.id == selectedProperty.id;
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => Navigator.of(context).pop(property),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? Colors.white
-                            : const Color(0xFFF6F3EC),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: selected ? AppColors.mint : Colors.white,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: _PropertyImage(
-                              property: property,
-                              width: 58,
-                              height: 58,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  property.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.ink,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  property.mapAddress ?? property.location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.muted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (selected)
-                            const HugeIcon(
-                              icon: HugeIcons.strokeRoundedTick02,
-                              size: 22,
-                              color: AppColors.green,
-                              strokeWidth: 2,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
           ],
