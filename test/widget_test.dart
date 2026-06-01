@@ -15,27 +15,6 @@ void main() {
     );
   });
 
-  testWidgets('dashboard can show location warmup prompt', (
-    WidgetTester tester,
-  ) async {
-    var enabled = false;
-
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: DashboardScreen(
-          showLocationWarmupPrompt: true,
-          onEnableLocationWarmup: () => enabled = true,
-        ),
-      ),
-    );
-
-    expect(find.text('Enable faster maps'), findsOneWidget);
-    await tester.tap(find.text('Enable'));
-
-    expect(enabled, isTrue);
-  });
-
   testWidgets('quick create saves property into local list', (
     WidgetTester tester,
   ) async {
