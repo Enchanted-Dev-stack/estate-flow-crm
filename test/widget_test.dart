@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_map/flutter_map.dart';
 
 import 'package:estateflow_crm/main.dart';
 
@@ -70,7 +71,7 @@ void main() {
     expect(find.text('Rental'), findsWidgets);
   });
 
-  testWidgets('map tab renders location detail card', (
+  testWidgets('map nav opens immersive location detail route', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const EstateFlowApp());
@@ -83,8 +84,37 @@ void main() {
     await tester.tapAt(Offset(bottomNav.left + 213, bottomNav.center.dy));
     await tester.pumpAndSettle();
 
-    expect(find.text('1 Hospital'), findsOneWidget);
-    expect(find.text('2 Gas stations'), findsOneWidget);
+    expect(find.byType(FlutterMap), findsOneWidget);
     expect(find.text('Location detail'), findsOneWidget);
+    expect(find.text('1 Hospital'), findsNothing);
+    expect(find.text('2 Gas stations'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_BottomNavBar',
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('popping map route restores shell navigation', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const EstateFlowApp());
+
+    final bottomNavFinder = find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString() == '_BottomNavBar',
+    );
+    final bottomNav = tester.getRect(bottomNavFinder);
+
+    await tester.tapAt(Offset(bottomNav.left + 213, bottomNav.center.dy));
+    await tester.pumpAndSettle();
+    expect(find.byType(FlutterMap), findsOneWidget);
+    expect(bottomNavFinder, findsNothing);
+
+    Navigator.of(tester.element(find.byType(MapScreen))).pop();
+    await tester.pumpAndSettle();
+
+    expect(find.text('EstateFlow'), findsOneWidget);
+    expect(bottomNavFinder, findsOneWidget);
   });
 }

@@ -187,6 +187,23 @@ class _CrmShellState extends State<CrmShell> {
     );
   }
 
+  Future<void> _openMap() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MapScreen(properties: _properties),
+      ),
+    );
+  }
+
+  void _handleNavChange(int index) {
+    if (_items[index].label == 'Map') {
+      _openMap();
+      return;
+    }
+
+    setState(() => _selectedIndex = index < 3 ? index : index - 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = [
@@ -199,13 +216,12 @@ class _CrmShellState extends State<CrmShell> {
         onDeleteProperty: _deleteProperty,
         onShareProperty: (property) => _shareProperty(property),
       ),
-      MapScreen(
-        properties: _properties,
-        onBack: () => setState(() => _selectedIndex = 2),
-      ),
       FollowUpsScreen(onAddProperty: _openAddProperty),
       MoreScreen(onAddProperty: _openAddProperty),
     ];
+    final selectedNavIndex = _selectedIndex < 3
+        ? _selectedIndex
+        : _selectedIndex + 1;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -221,8 +237,8 @@ class _CrmShellState extends State<CrmShell> {
               child: Center(
                 child: _BottomNavBar(
                   items: _items,
-                  selectedIndex: _selectedIndex,
-                  onChanged: (index) => setState(() => _selectedIndex = index),
+                  selectedIndex: selectedNavIndex,
+                  onChanged: _handleNavChange,
                 ),
               ),
             ),
@@ -4211,10 +4227,9 @@ class _PropertyImage extends StatelessWidget {
 }
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({required this.properties, required this.onBack, super.key});
+  const MapScreen({required this.properties, super.key});
 
   final List<PropertyListing> properties;
-  final VoidCallback onBack;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -4225,7 +4240,6 @@ class _MapScreenState extends State<MapScreen> {
 
   final MapController _mapController = MapController();
   int _selectedIndex = 0;
-  final Set<String> _activeFilters = {'Hospital', 'Gas stations', 'Schools'};
 
   PropertyListing get _selectedProperty {
     if (widget.properties.isEmpty) {
@@ -4284,16 +4298,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _toggleFilter(String filter) {
-    setState(() {
-      if (_activeFilters.contains(filter)) {
-        _activeFilters.remove(filter);
-      } else {
-        _activeFilters.add(filter);
-      }
-    });
-  }
-
   void _centerSelectedProperty() {
     final coordinate = _coordinateFor(_selectedProperty);
     if (coordinate == null) {
@@ -4333,211 +4337,140 @@ class _MapScreenState extends State<MapScreen> {
     final selectedProperty = _selectedProperty;
     final selectedCoordinate = _coordinateFor(selectedProperty);
     final mapCenter = selectedCoordinate ?? _defaultCenter;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     final userCoordinate = selectedCoordinate == null
         ? null
         : _userCoordinateNear(selectedCoordinate);
 
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: mapCenter,
-              initialZoom: 14,
-              minZoom: 3,
-              maxZoom: 18,
-              interactionOptions: const InteractionOptions(
-                flags:
-                    InteractiveFlag.drag |
-                    InteractiveFlag.pinchZoom |
-                    InteractiveFlag.doubleTapZoom,
-              ),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'estateflow_crm',
-              ),
-              if (selectedCoordinate != null)
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: selectedCoordinate,
-                      radius: 1150,
-                      useRadiusInMeter: true,
-                      color: const Color(0xFF698797).withValues(alpha: 0.18),
-                      borderColor: const Color(
-                        0xFF698797,
-                      ).withValues(alpha: 0.18),
-                      borderStrokeWidth: 1,
-                    ),
-                  ],
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: mapCenter,
+                initialZoom: 14,
+                minZoom: 3,
+                maxZoom: 18,
+                interactionOptions: const InteractionOptions(
+                  flags:
+                      InteractiveFlag.drag |
+                      InteractiveFlag.pinchZoom |
+                      InteractiveFlag.doubleTapZoom,
                 ),
-              if (selectedCoordinate != null && userCoordinate != null)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: [userCoordinate, selectedCoordinate],
-                      color: const Color(0xFF77BF43).withValues(alpha: 0.72),
-                      strokeWidth: 5,
-                    ),
-                  ],
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'estateflow_crm',
                 ),
-              MarkerLayer(
-                markers: [
-                  if (userCoordinate != null)
-                    Marker(
-                      point: userCoordinate,
-                      width: 48,
-                      height: 48,
-                      child: const _MapUserMarker(),
-                    ),
-                  for (var index = 0; index < widget.properties.length; index++)
-                    if (_coordinateFor(widget.properties[index]) != null)
-                      Marker(
-                        point: _coordinateFor(widget.properties[index])!,
-                        width: 62,
-                        height: 70,
-                        child: _MapPropertyMarker(
-                          property: widget.properties[index],
-                          selected:
-                              widget.properties[index].id ==
-                              selectedProperty.id,
-                          onTap: () => _selectProperty(index),
-                        ),
+                if (selectedCoordinate != null)
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: selectedCoordinate,
+                        radius: 1150,
+                        useRadiusInMeter: true,
+                        color: const Color(0xFF698797).withValues(alpha: 0.18),
+                        borderColor: const Color(
+                          0xFF698797,
+                        ).withValues(alpha: 0.18),
+                        borderStrokeWidth: 1,
                       ),
-                ],
-              ),
-              RichAttributionWidget(
-                attributions: [
-                  TextSourceAttribution('OpenStreetMap contributors'),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.24),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.05),
+                    ],
+                  ),
+                if (selectedCoordinate != null && userCoordinate != null)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: [userCoordinate, selectedCoordinate],
+                        color: const Color(0xFF77BF43).withValues(alpha: 0.72),
+                        strokeWidth: 5,
+                      ),
+                    ],
+                  ),
+                MarkerLayer(
+                  markers: [
+                    if (userCoordinate != null)
+                      Marker(
+                        point: userCoordinate,
+                        width: 48,
+                        height: 48,
+                        child: const _MapUserMarker(),
+                      ),
+                    for (
+                      var index = 0;
+                      index < widget.properties.length;
+                      index++
+                    )
+                      if (_coordinateFor(widget.properties[index]) != null)
+                        Marker(
+                          point: _coordinateFor(widget.properties[index])!,
+                          width: 62,
+                          height: 70,
+                          child: _MapPropertyMarker(
+                            property: widget.properties[index],
+                            selected:
+                                widget.properties[index].id ==
+                                selectedProperty.id,
+                            onTap: () => _selectProperty(index),
+                          ),
+                        ),
                   ],
+                ),
+                RichAttributionWidget(
+                  attributions: [
+                    TextSourceAttribution('OpenStreetMap contributors'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.24),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.05),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        Positioned(
-          left: 14,
-          top: MediaQuery.paddingOf(context).top + 14,
-          child: _MapCircleButton(
-            icon: HugeIcons.strokeRoundedArrowLeft02,
-            onTap: widget.onBack,
-          ),
-        ),
-        Positioned(
-          left: 36,
-          right: 16,
-          top: MediaQuery.paddingOf(context).top + 72,
-          child: Row(
-            children: [
-              _MapAmenityChip(
-                label: '1 Hospital',
-                active: _activeFilters.contains('Hospital'),
-                onTap: () => _toggleFilter('Hospital'),
-              ),
-              const SizedBox(width: 10),
-              _MapAmenityChip(
-                label: '2 Gas stations',
-                active: _activeFilters.contains('Gas stations'),
-                onTap: () => _toggleFilter('Gas stations'),
-              ),
-              const SizedBox(width: 10),
-              _MapAmenityChip(
-                label: '1 Schools',
-                active: _activeFilters.contains('Schools'),
-                onTap: () => _toggleFilter('Schools'),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          left: 28,
-          bottom: 142,
-          child: _MapLocationPill(
-            label: selectedProperty.mapAddress ?? selectedProperty.location,
-            onTap: _openLocationSelector,
-          ),
-        ),
-        Positioned(
-          right: 20,
-          bottom: 136,
-          child: _MapCircleButton(
-            icon: HugeIcons.strokeRoundedGps01,
-            dark: true,
-            onTap: _centerSelectedProperty,
-          ),
-        ),
-        Positioned(
-          left: 18,
-          right: 18,
-          bottom: 14,
-          child: _MapLocationDetailCard(
-            property: selectedProperty,
-            onTap: () => _openDetails(selectedProperty),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MapAmenityChip extends StatelessWidget {
-  const _MapAmenityChip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          height: 42,
-          decoration: BoxDecoration(
-            color: active
-                ? Colors.white.withValues(alpha: 0.86)
-                : Colors.white.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: active ? const Color(0xFF526177) : AppColors.muted,
+          Positioned(
+            left: 28,
+            bottom: bottomInset + 142,
+            child: _MapLocationPill(
+              label: selectedProperty.mapAddress ?? selectedProperty.location,
+              onTap: _openLocationSelector,
             ),
           ),
-        ),
+          Positioned(
+            right: 20,
+            bottom: bottomInset + 136,
+            child: _MapCircleButton(
+              icon: HugeIcons.strokeRoundedGps01,
+              dark: true,
+              onTap: _centerSelectedProperty,
+            ),
+          ),
+          Positioned(
+            left: 18,
+            right: 18,
+            bottom: bottomInset + 14,
+            child: _MapLocationDetailCard(
+              property: selectedProperty,
+              onTap: () => _openDetails(selectedProperty),
+            ),
+          ),
+        ],
       ),
     );
   }
