@@ -82,6 +82,12 @@ final _mapTileProvider = NetworkTileProvider(
   silenceExceptions: true,
 );
 
+const _mapTileUrlTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+String _mapTileUrl({required int zoom, required int x, required int y}) {
+  return 'https://tile.openstreetmap.org/$zoom/$x/$y.png';
+}
+
 class CrmShell extends StatefulWidget {
   const CrmShell({super.key});
 
@@ -4442,19 +4448,19 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _CachedOsmTileLayer extends StatelessWidget {
-  const _CachedOsmTileLayer();
+class _CachedMapTileLayer extends StatelessWidget {
+  const _CachedMapTileLayer();
 
   @override
   Widget build(BuildContext context) {
     return TileLayer(
-      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      urlTemplate: _mapTileUrlTemplate,
       userAgentPackageName: 'estateflow_crm',
       tileProvider: _mapTileProvider,
       keepBuffer: 4,
       panBuffer: 2,
       tileBuilder: (context, tileWidget, tile) {
-        return ColoredBox(color: const Color(0xFFE7ECEC), child: tileWidget);
+        return ColoredBox(color: const Color(0xFFD9E0DE), child: tileWidget);
       },
     );
   }
@@ -4485,7 +4491,7 @@ class _MapTileWarmupLayer extends StatelessWidget {
                     flags: InteractiveFlag.none,
                   ),
                 ),
-                children: const [_CachedOsmTileLayer()],
+                children: const [_CachedMapTileLayer()],
               ),
               if (propertyCoordinates.isNotEmpty)
                 FlutterMap(
@@ -4502,7 +4508,7 @@ class _MapTileWarmupLayer extends StatelessWidget {
                       flags: InteractiveFlag.none,
                     ),
                   ),
-                  children: const [_CachedOsmTileLayer()],
+                  children: const [_CachedMapTileLayer()],
                 ),
             ],
           ),
@@ -4545,7 +4551,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1500),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureLocationPermission();
+      _loadCurrentLocationMarker();
     });
   }
 
@@ -4624,6 +4630,25 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
+  Future<void> _loadCurrentLocationMarker() async {
+    try {
+      final status = await Permission.locationWhenInUse.status;
+      if (!mounted || (!status.isGranted && !status.isLimited)) return;
+
+      final servicesEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted || !servicesEnabled) return;
+
+      final position = await Geolocator.getLastKnownPosition();
+      if (!mounted || position == null) return;
+
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+      });
+    } catch (_) {
+      // The map should open focused on properties even if location is unavailable.
+    }
+  }
+
   Future<void> _focusCurrentLocation() async {
     try {
       final servicesEnabled = await Geolocator.isLocationServiceEnabled();
@@ -4646,7 +4671,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         );
         setState(() => _currentLocation = coordinate);
         await Future.wait([
-          _precacheOsmTilesAround(coordinate),
+          _precacheMapTilesAround(coordinate),
           Future<void>.delayed(const Duration(milliseconds: 800)),
         ]);
         if (!mounted) return;
@@ -4670,7 +4695,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           coordinate,
         )) {
           await Future.wait([
-            _precacheOsmTilesAround(coordinate),
+            _precacheMapTilesAround(coordinate),
             Future<void>.delayed(const Duration(milliseconds: 800)),
           ]);
           if (!mounted) return;
@@ -4682,7 +4707,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       setState(() => _currentLocation = coordinate);
 
       await Future.wait([
-        _precacheOsmTilesAround(coordinate),
+        _precacheMapTilesAround(coordinate),
         Future<void>.delayed(const Duration(milliseconds: 800)),
       ]);
       if (!mounted) return;
@@ -4705,16 +4730,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         100;
   }
 
-  Future<void> _precacheOsmTilesAround(LatLng coordinate) async {
+  Future<void> _precacheMapTilesAround(LatLng coordinate) async {
     final futures = <Future<void>>[];
     for (final zoom in const [14, 15]) {
-      final tile = _osmTileFor(coordinate, zoom);
+      final tile = _mapTileFor(coordinate, zoom);
       for (var xOffset = -1; xOffset <= 1; xOffset++) {
         for (var yOffset = -1; yOffset <= 1; yOffset++) {
           final x = tile.x + xOffset;
           final y = tile.y + yOffset;
           if (x < 0 || y < 0) continue;
-          futures.add(_cacheOsmTile(zoom: zoom, x: x, y: y));
+          futures.add(_cacheMapTile(zoom: zoom, x: x, y: y));
         }
       }
     }
@@ -4725,12 +4750,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     ]);
   }
 
-  Future<void> _cacheOsmTile({
+  Future<void> _cacheMapTile({
     required int zoom,
     required int x,
     required int y,
   }) async {
-    final url = 'https://tile.openstreetmap.org/$zoom/$x/$y.png';
+    final url = _mapTileUrl(zoom: zoom, x: x, y: y);
     try {
       final cachedTile = await _mapTileCache.getTile(url);
       if (cachedTile != null && !cachedTile.metadata.isStale) return;
@@ -4756,7 +4781,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     }
   }
 
-  ({int x, int y}) _osmTileFor(LatLng coordinate, int zoom) {
+  ({int x, int y}) _mapTileFor(LatLng coordinate, int zoom) {
     final scale = math.pow(2, zoom).toDouble();
     final latitudeRadians = coordinate.latitude * math.pi / 180;
     final x = ((coordinate.longitude + 180) / 360 * scale).floor();
@@ -4862,7 +4887,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 children: [
-                  const _CachedOsmTileLayer(),
+                  const _CachedMapTileLayer(),
                   if (selectedCoordinate != null)
                     CircleLayer(
                       circles: [
@@ -4897,8 +4922,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       if (userCoordinate != null)
                         Marker(
                           point: userCoordinate,
-                          width: 48,
-                          height: 48,
+                          width: 68,
+                          height: 68,
                           child: const _MapUserMarker(),
                         ),
                       for (
@@ -4939,9 +4964,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.white.withValues(alpha: 0.24),
+                      AppColors.canvas.withValues(alpha: 0.34),
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.05),
+                      AppColors.ink.withValues(alpha: 0.07),
                     ],
                   ),
                 ),
@@ -5104,32 +5129,91 @@ class _MapPropertyMarker extends StatelessWidget {
   }
 }
 
-class _MapUserMarker extends StatelessWidget {
+class _MapUserMarker extends StatefulWidget {
   const _MapUserMarker();
 
   @override
+  State<_MapUserMarker> createState() => _MapUserMarkerState();
+}
+
+class _MapUserMarkerState extends State<_MapUserMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: const BoxDecoration(
-        color: Color(0xFF77BF43),
-        shape: BoxShape.circle,
-      ),
-      child: const ClipOval(
-        child: ColoredBox(
-          color: Color(0xFFEFF8ED),
-          child: Center(
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedUser02,
-              size: 22,
-              color: Color(0xFF4E9B4D),
-              strokeWidth: 1.8,
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final pulse = Curves.easeOut.transform(_pulseController.value);
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: lerpDouble(24, 66, pulse),
+              height: lerpDouble(24, 66, pulse),
+              decoration: BoxDecoration(
+                color: const Color(
+                  0xFF1677FF,
+                ).withValues(alpha: lerpDouble(0.22, 0, pulse)!),
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-        ),
-      ),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1677FF).withValues(alpha: 0.13),
+                shape: BoxShape.circle,
+              ),
+            ),
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1677FF),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1677FF).withValues(alpha: 0.42),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.14),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Color(0xFFBFE1FF),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
