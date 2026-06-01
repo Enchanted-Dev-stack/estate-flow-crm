@@ -69,4 +69,22 @@ void main() {
     expect(find.text('Palm Test Villa'), findsOneWidget);
     expect(find.text('Rental'), findsWidgets);
   });
+
+  testWidgets('map tab renders location detail card', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const EstateFlowApp());
+
+    final bottomNav = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_BottomNavBar',
+      ),
+    );
+    await tester.tapAt(Offset(bottomNav.left + 213, bottomNav.center.dy));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 Hospital'), findsOneWidget);
+    expect(find.text('2 Gas stations'), findsOneWidget);
+    expect(find.text('Location detail'), findsOneWidget);
+  });
 }

@@ -87,6 +87,10 @@ class _CrmShellState extends State<CrmShell> {
       status: 'Sale',
       image:
           'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=90',
+      mapAddress: '305 Pomona Ave, Coronado, CA. 92118',
+      latitude: 32.6859,
+      longitude: -117.1831,
+      mapPosition: Offset(0.64, 0.34),
       tagColor: Color(0xFFE46773),
     ),
     PropertyListing(
@@ -98,6 +102,10 @@ class _CrmShellState extends State<CrmShell> {
       status: 'Rental',
       image:
           'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=90',
+      mapAddress: '305 Pomona Ave, Coronado, CA. 92118',
+      latitude: 32.6848,
+      longitude: -117.1776,
+      mapPosition: Offset(0.78, 0.49),
       tagColor: Color(0xFF36C878),
     ),
     PropertyListing(
@@ -109,6 +117,10 @@ class _CrmShellState extends State<CrmShell> {
       status: 'Ready',
       image:
           'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=90',
+      mapAddress: 'Noida Sector 150, Uttar Pradesh',
+      latitude: 28.4498,
+      longitude: 77.5197,
+      mapPosition: Offset(0.33, 0.56),
       tagColor: AppColors.green,
     ),
   ];
@@ -117,6 +129,7 @@ class _CrmShellState extends State<CrmShell> {
     _NavItem('Dashboard', HugeIcons.strokeRoundedHome05),
     _NavItem('Leads', HugeIcons.strokeRoundedUserGroup),
     _NavItem('Properties', HugeIcons.strokeRoundedRealEstate01),
+    _NavItem('Map', HugeIcons.strokeRoundedLocation01),
     _NavItem('Follow-ups', HugeIcons.strokeRoundedCalendar03),
     _NavItem('More', HugeIcons.strokeRoundedMenuCircle),
   ];
@@ -183,6 +196,10 @@ class _CrmShellState extends State<CrmShell> {
         onEditProperty: _openEditProperty,
         onDeleteProperty: _deleteProperty,
         onShareProperty: (property) => _shareProperty(property),
+      ),
+      MapScreen(
+        properties: _properties,
+        onBack: () => setState(() => _selectedIndex = 2),
       ),
       FollowUpsScreen(onAddProperty: _openAddProperty),
       MoreScreen(onAddProperty: _openAddProperty),
@@ -715,6 +732,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
   late final TextEditingController _localityController;
   late final TextEditingController _addressController;
   late final TextEditingController _landmarkController;
+  late final TextEditingController _mapLocationController;
+  late final TextEditingController _latitudeController;
+  late final TextEditingController _longitudeController;
   late final TextEditingController _sizeController;
   late final TextEditingController _floorController;
   late final TextEditingController _bedroomController;
@@ -753,6 +773,15 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     _localityController = TextEditingController();
     _addressController = TextEditingController(text: property?.location ?? '');
     _landmarkController = TextEditingController();
+    _mapLocationController = TextEditingController(
+      text: property?.mapAddress ?? property?.location ?? '',
+    );
+    _latitudeController = TextEditingController(
+      text: property?.latitude?.toString() ?? '',
+    );
+    _longitudeController = TextEditingController(
+      text: property?.longitude?.toString() ?? '',
+    );
     _sizeController = TextEditingController();
     _floorController = TextEditingController();
     _bedroomController = TextEditingController();
@@ -778,6 +807,9 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     _localityController.dispose();
     _addressController.dispose();
     _landmarkController.dispose();
+    _mapLocationController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
     _sizeController.dispose();
     _floorController.dispose();
     _bedroomController.dispose();
@@ -807,11 +839,16 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
     final location = address.isNotEmpty
         ? address
         : [locality, city].where((part) => part.isNotEmpty).join(', ');
+    final mapAddress = _mapLocationController.text.trim();
     final price = _priceController.text.trim();
     final purpose = _selectedPurposeIndex == -1
         ? 'Sale'
         : _purposeOptions[_selectedPurposeIndex];
     final status = purpose == 'Rent' ? 'Rental' : purpose;
+
+    final latitude = double.tryParse(_latitudeController.text.trim());
+    final longitude = double.tryParse(_longitudeController.text.trim());
+    final enteredMapPosition = _mapPositionFromCoordinates(latitude, longitude);
 
     Navigator.of(context).pop(
       PropertyListing(
@@ -829,8 +866,23 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
         localImagePath: _selectedPhotoPaths.isEmpty
             ? null
             : _selectedPhotoPaths.first,
+        mapAddress: mapAddress.isEmpty ? location : mapAddress,
+        latitude: latitude,
+        longitude: longitude,
+        mapPosition: enteredMapPosition ?? widget.property?.mapPosition,
         tagColor: widget.property?.tagColor ?? AppColors.green,
       ),
+    );
+  }
+
+  Offset? _mapPositionFromCoordinates(double? latitude, double? longitude) {
+    if (latitude == null || longitude == null) return null;
+
+    final x = 0.18 + (math.sin(longitude * math.pi / 180).abs() * 0.64);
+    final y = 0.2 + (math.cos(latitude * math.pi / 180).abs() * 0.55);
+    return Offset(
+      x.clamp(0.18, 0.82).toDouble(),
+      y.clamp(0.2, 0.75).toDouble(),
     );
   }
 
@@ -1073,6 +1125,33 @@ class _AddPropertyScreenState extends State<AddPropertyScreen> {
                         label: 'Landmark',
                         hint: 'Nearby landmark',
                         controller: _landmarkController,
+                      ),
+                      const SizedBox(height: 10),
+                      _PropertyTextInput(
+                        label: 'Map location',
+                        hint: 'Searchable address or map pin label',
+                        controller: _mapLocationController,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Latitude',
+                              hint: 'Optional',
+                              controller: _latitudeController,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PropertyTextInput(
+                              label: 'Longitude',
+                              hint: 'Optional',
+                              controller: _longitudeController,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -4067,6 +4146,10 @@ class PropertyListing {
     required this.status,
     required this.image,
     this.localImagePath,
+    this.mapAddress,
+    this.latitude,
+    this.longitude,
+    this.mapPosition,
     required this.tagColor,
   });
 
@@ -4078,6 +4161,10 @@ class PropertyListing {
   final String status;
   final String image;
   final String? localImagePath;
+  final String? mapAddress;
+  final double? latitude;
+  final double? longitude;
+  final Offset? mapPosition;
   final Color tagColor;
 
   String get heroTag => 'property-image-$id';
@@ -4118,6 +4205,940 @@ class _PropertyImage extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) =>
           Container(width: width, height: height, color: AppColors.line),
     );
+  }
+}
+
+class MapScreen extends StatefulWidget {
+  const MapScreen({required this.properties, required this.onBack, super.key});
+
+  final List<PropertyListing> properties;
+  final VoidCallback onBack;
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  int _selectedIndex = 0;
+  final Set<String> _activeFilters = {'Hospital', 'Gas stations', 'Schools'};
+
+  PropertyListing get _selectedProperty {
+    if (widget.properties.isEmpty) {
+      return PropertyDetailsScreen.fallbackProperty;
+    }
+    return widget.properties[_selectedIndex.clamp(
+      0,
+      widget.properties.length - 1,
+    )];
+  }
+
+  Offset _positionFor(PropertyListing property, int index) {
+    final fallbackPositions = const [
+      Offset(0.64, 0.34),
+      Offset(0.78, 0.49),
+      Offset(0.33, 0.56),
+      Offset(0.65, 0.66),
+      Offset(0.43, 0.44),
+    ];
+    return property.mapPosition ??
+        fallbackPositions[index % fallbackPositions.length];
+  }
+
+  Future<void> _openDetails(PropertyListing property) async {
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PropertyDetailsScreen(property: property),
+        transitionDuration: const Duration(milliseconds: 260),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(opacity: curvedAnimation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _toggleFilter(String filter) {
+    setState(() {
+      if (_activeFilters.contains(filter)) {
+        _activeFilters.remove(filter);
+      } else {
+        _activeFilters.add(filter);
+      }
+    });
+  }
+
+  void _centerSelectedProperty() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Centered on ${_selectedProperty.title}')),
+    );
+  }
+
+  Future<void> _openLocationSelector() async {
+    final selectedProperty = await showModalBottomSheet<PropertyListing>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _MapLocationSelectorSheet(
+        properties: widget.properties,
+        selectedProperty: _selectedProperty,
+      ),
+    );
+    if (selectedProperty == null || !mounted) return;
+
+    final index = widget.properties.indexWhere(
+      (property) => property.id == selectedProperty.id,
+    );
+    if (index != -1) setState(() => _selectedIndex = index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedProperty = _selectedProperty;
+    final selectedPosition = _positionFor(selectedProperty, _selectedIndex);
+
+    return Container(
+      color: const Color(0xFFE7ECEC),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 96),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(34),
+        child: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: _StaticMapPainter())),
+            Positioned.fill(
+              child: Container(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _MapRoutePainter(selectedPosition: selectedPosition),
+              ),
+            ),
+            _MapRadiusOverlay(position: selectedPosition),
+            Positioned(
+              left: 14,
+              top: 14,
+              child: _MapCircleButton(
+                icon: HugeIcons.strokeRoundedArrowLeft02,
+                onTap: widget.onBack,
+              ),
+            ),
+            Positioned(
+              left: 36,
+              right: 16,
+              top: 72,
+              child: Row(
+                children: [
+                  _MapAmenityChip(
+                    label: '1 Hospital',
+                    active: _activeFilters.contains('Hospital'),
+                    onTap: () => _toggleFilter('Hospital'),
+                  ),
+                  const SizedBox(width: 10),
+                  _MapAmenityChip(
+                    label: '2 Gas stations',
+                    active: _activeFilters.contains('Gas stations'),
+                    onTap: () => _toggleFilter('Gas stations'),
+                  ),
+                  const SizedBox(width: 10),
+                  _MapAmenityChip(
+                    label: '1 Schools',
+                    active: _activeFilters.contains('Schools'),
+                    onTap: () => _toggleFilter('Schools'),
+                  ),
+                ],
+              ),
+            ),
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final size = Size(
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                  );
+                  return Stack(
+                    children: [
+                      _MapUserMarker(
+                        position: const Offset(0.28, 0.28),
+                        size: size,
+                      ),
+                      for (
+                        var index = 0;
+                        index < widget.properties.length;
+                        index++
+                      )
+                        _MapPropertyMarker(
+                          property: widget.properties[index],
+                          position: _positionFor(
+                            widget.properties[index],
+                            index,
+                          ),
+                          mapSize: size,
+                          selected:
+                              widget.properties[index].id ==
+                              selectedProperty.id,
+                          onTap: () => setState(() => _selectedIndex = index),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              left: 28,
+              bottom: 142,
+              child: _MapLocationPill(
+                label: selectedProperty.mapAddress ?? selectedProperty.location,
+                onTap: _openLocationSelector,
+              ),
+            ),
+            Positioned(
+              right: 20,
+              bottom: 136,
+              child: _MapCircleButton(
+                icon: HugeIcons.strokeRoundedGps01,
+                dark: true,
+                onTap: _centerSelectedProperty,
+              ),
+            ),
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 14,
+              child: _MapLocationDetailCard(
+                property: selectedProperty,
+                onTap: () => _openDetails(selectedProperty),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapAmenityChip extends StatelessWidget {
+  const _MapAmenityChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 42,
+          decoration: BoxDecoration(
+            color: active
+                ? Colors.white.withValues(alpha: 0.86)
+                : Colors.white.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: active ? const Color(0xFF526177) : AppColors.muted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapCircleButton extends StatelessWidget {
+  const _MapCircleButton({required this.icon, this.onTap, this.dark = false});
+
+  final List<List<dynamic>> icon;
+  final VoidCallback? onTap;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: dark
+              ? const Color(0xFF6E8BA0)
+              : Colors.white.withValues(alpha: 0.82),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Center(
+          child: HugeIcon(
+            icon: icon,
+            size: 22,
+            color: dark ? Colors.white : const Color(0xFF36404A),
+            strokeWidth: 1.8,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapRadiusOverlay extends StatelessWidget {
+  const _MapRadiusOverlay({required this.position});
+
+  final Offset position;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final radius = constraints.maxWidth * 0.72;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                left: (constraints.maxWidth * position.dx) - (radius / 2),
+                top: (constraints.maxHeight * position.dy) - (radius / 2),
+                width: radius,
+                height: radius,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF698797).withValues(alpha: 0.22),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MapPropertyMarker extends StatelessWidget {
+  const _MapPropertyMarker({
+    required this.property,
+    required this.position,
+    required this.mapSize,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final PropertyListing property;
+  final Offset position;
+  final Size mapSize;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      left: (mapSize.width * position.dx) - 24,
+      top: (mapSize.height * position.dy) - 34,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 180),
+          scale: selected ? 1.12 : 1,
+          child: Column(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0xFF345D72)
+                      : const Color(0xFF4D6978),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Hero(
+                    tag: property.heroTag,
+                    child: _PropertyImage(
+                      property: property,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                width: 14,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0xFF345D72)
+                      : const Color(0xFF4D6978),
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapUserMarker extends StatelessWidget {
+  const _MapUserMarker({required this.position, required this.size});
+
+  final Offset position;
+  final Size size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: (size.width * position.dx) - 22,
+      top: (size.height * position.dy) - 22,
+      child: Container(
+        width: 44,
+        height: 44,
+        padding: const EdgeInsets.all(3),
+        decoration: const BoxDecoration(
+          color: Color(0xFF77BF43),
+          shape: BoxShape.circle,
+        ),
+        child: const ClipOval(
+          child: ColoredBox(
+            color: Color(0xFFEFF8ED),
+            child: Center(
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedUser02,
+                size: 22,
+                color: Color(0xFF4E9B4D),
+                strokeWidth: 1.8,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapLocationPill extends StatelessWidget {
+  const _MapLocationPill({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 210),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedLocation01,
+              size: 18,
+              color: Color(0xFF1D5477),
+              strokeWidth: 1.8,
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF2F3F65),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowDown01,
+              size: 14,
+              color: Color(0xFF8C7DFF),
+              strokeWidth: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapLocationDetailCard extends StatelessWidget {
+  const _MapLocationDetailCard({required this.property, required this.onTap});
+
+  final PropertyListing property;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 26,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: _PropertyImage(
+                property: property,
+                width: 92,
+                height: 92,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Location detail',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF7EC),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          property.status,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF4E9B4D),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedArrowRight02,
+                        size: 19,
+                        color: AppColors.muted,
+                        strokeWidth: 1.8,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    property.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: AppFonts.cabinet,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    property.mapAddress ?? property.location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    property.price,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1B5F80),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapLocationSelectorSheet extends StatelessWidget {
+  const _MapLocationSelectorSheet({
+    required this.properties,
+    required this.selectedProperty,
+  });
+
+  final List<PropertyListing> properties;
+  final PropertyListing selectedProperty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+      decoration: BoxDecoration(
+        color: AppColors.canvas,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 46,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.line,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Choose map location',
+              style: TextStyle(
+                fontFamily: AppFonts.cabinet,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+                letterSpacing: -0.7,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: properties.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final property = properties[index];
+                  final selected = property.id == selectedProperty.id;
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).pop(property),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? Colors.white
+                            : const Color(0xFFF6F3EC),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: selected ? AppColors.mint : Colors.white,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: _PropertyImage(
+                              property: property,
+                              width: 58,
+                              height: 58,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  property.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  property.mapAddress ?? property.location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.muted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (selected)
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedTick02,
+                              size: 22,
+                              color: AppColors.green,
+                              strokeWidth: 2,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StaticMapPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()..color = const Color(0xFFDCE6E4);
+    canvas.drawRect(Offset.zero & size, background);
+
+    final landPaint = Paint()..color = const Color(0xFFEAF0ED);
+    final waterPaint = Paint()..color = const Color(0xFFC9DBE1);
+    final parkPaint = Paint()..color = const Color(0xFFCFE4D1);
+    final roadPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.88)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final minorRoadPaint = Paint()
+      ..color = const Color(0xFFF6F3EC).withValues(alpha: 0.86)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(
+      Offset(size.width * 0.12, size.height * 0.22),
+      130,
+      landPaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.72),
+      180,
+      landPaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * 0.2, size.height * 0.82),
+        width: size.width * 0.75,
+        height: size.height * 0.28,
+      ),
+      waterPaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width * 0.76, size.height * 0.19),
+        width: size.width * 0.42,
+        height: size.height * 0.16,
+      ),
+      parkPaint,
+    );
+
+    void road(List<Offset> points, Paint paint, double width) {
+      final path = Path()
+        ..moveTo(points.first.dx * size.width, points.first.dy * size.height);
+      for (var index = 1; index < points.length; index++) {
+        path.lineTo(
+          points[index].dx * size.width,
+          points[index].dy * size.height,
+        );
+      }
+      canvas.drawPath(path, paint..strokeWidth = width);
+    }
+
+    road(
+      const [
+        Offset(0.05, 0.34),
+        Offset(0.25, 0.4),
+        Offset(0.48, 0.38),
+        Offset(0.96, 0.48),
+      ],
+      roadPaint,
+      18,
+    );
+    road(
+      const [
+        Offset(0.34, 0.02),
+        Offset(0.38, 0.28),
+        Offset(0.48, 0.56),
+        Offset(0.57, 0.98),
+      ],
+      roadPaint,
+      16,
+    );
+    road(
+      const [
+        Offset(0.04, 0.62),
+        Offset(0.3, 0.57),
+        Offset(0.6, 0.66),
+        Offset(0.92, 0.6),
+      ],
+      minorRoadPaint,
+      10,
+    );
+    road(
+      const [
+        Offset(0.73, 0.02),
+        Offset(0.66, 0.25),
+        Offset(0.7, 0.56),
+        Offset(0.86, 0.95),
+      ],
+      minorRoadPaint,
+      9,
+    );
+    road(
+      const [
+        Offset(0.12, 0.08),
+        Offset(0.24, 0.3),
+        Offset(0.25, 0.62),
+        Offset(0.18, 0.94),
+      ],
+      minorRoadPaint,
+      8,
+    );
+
+    final blockPaint = Paint()..color = Colors.white.withValues(alpha: 0.42);
+    for (final block in const [
+      Rect.fromLTWH(0.1, 0.46, 0.17, 0.08),
+      Rect.fromLTWH(0.52, 0.2, 0.18, 0.08),
+      Rect.fromLTWH(0.58, 0.76, 0.22, 0.08),
+      Rect.fromLTWH(0.74, 0.34, 0.16, 0.08),
+      Rect.fromLTWH(0.3, 0.72, 0.16, 0.08),
+    ]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            block.left * size.width,
+            block.top * size.height,
+            block.width * size.width,
+            block.height * size.height,
+          ),
+          const Radius.circular(14),
+        ),
+        blockPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _MapRoutePainter extends CustomPainter {
+  const _MapRoutePainter({required this.selectedPosition});
+
+  final Offset selectedPosition;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final start = Offset(size.width * 0.28, size.height * 0.28);
+    final end = Offset(
+      size.width * selectedPosition.dx,
+      size.height * selectedPosition.dy,
+    );
+    final control = Offset(
+      (start.dx + end.dx) / 2,
+      math.min(start.dy, end.dy) - size.height * 0.12,
+    );
+    final shadowPath = Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+
+    canvas.drawPath(
+      shadowPath,
+      Paint()
+        ..color = const Color(0xFF77BF43).withValues(alpha: 0.24)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 12
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      shadowPath,
+      Paint()
+        ..color = const Color(0xFF77BF43)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MapRoutePainter oldDelegate) {
+    return oldDelegate.selectedPosition != selectedPosition;
   }
 }
 
