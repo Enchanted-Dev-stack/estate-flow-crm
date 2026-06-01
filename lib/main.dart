@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image/image.dart' as img;
@@ -4240,6 +4241,7 @@ class _MapScreenState extends State<MapScreen> {
 
   final MapController _mapController = MapController();
   int? _selectedIndex;
+  LatLng? _currentLocation;
 
   PropertyListing? get _selectedProperty {
     final selectedIndex = _selectedIndex;
@@ -4275,13 +4277,6 @@ class _MapScreenState extends State<MapScreen> {
     return null;
   }
 
-  LatLng _userCoordinateNear(LatLng selectedCoordinate) {
-    return LatLng(
-      selectedCoordinate.latitude - 0.006,
-      selectedCoordinate.longitude - 0.008,
-    );
-  }
-
   void _selectProperty(int index) {
     setState(() => _selectedIndex = index);
     final coordinate = _coordinateFor(widget.properties[index]);
@@ -4291,7 +4286,12 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _ensureLocationPermission() async {
     try {
       final status = await Permission.locationWhenInUse.status;
-      if (!mounted || status.isGranted || status.isLimited) return;
+      if (!mounted) return;
+
+      if (status.isGranted || status.isLimited) {
+        await _focusCurrentLocation();
+        return;
+      }
 
       if (status.isPermanentlyDenied) {
         _showLocationSettingsMessage();
@@ -4300,6 +4300,10 @@ class _MapScreenState extends State<MapScreen> {
 
       final requestedStatus = await Permission.locationWhenInUse.request();
       if (!mounted) return;
+      if (requestedStatus.isGranted || requestedStatus.isLimited) {
+        await _focusCurrentLocation();
+        return;
+      }
       if (requestedStatus.isPermanentlyDenied) {
         _showLocationSettingsMessage();
       }
@@ -4317,6 +4321,38 @@ class _MapScreenState extends State<MapScreen> {
         action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
       ),
     );
+  }
+
+  Future<void> _focusCurrentLocation() async {
+    try {
+      final servicesEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
+      if (!servicesEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Turn on location services to center map'),
+          ),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      if (!mounted) return;
+
+      final coordinate = LatLng(position.latitude, position.longitude);
+      setState(() => _currentLocation = coordinate);
+      _mapController.move(coordinate, 14);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to get your current location')),
+      );
+    }
   }
 
   Future<void> _openDetails(PropertyListing property) async {
@@ -4337,40 +4373,15 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _centerSelectedProperty() {
-    final selectedProperty = _selectedProperty;
-    if (selectedProperty == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a property marker first')),
-      );
-      return;
-    }
-
-    final coordinate = _coordinateFor(selectedProperty);
-    if (coordinate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${selectedProperty.title} has no map pin yet')),
-      );
-      return;
-    }
-
-    _mapController.move(coordinate, 14);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Centered on ${selectedProperty.title}')),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final selectedProperty = _selectedProperty;
     final selectedCoordinate = selectedProperty == null
         ? null
         : _coordinateFor(selectedProperty);
-    final mapCenter = selectedCoordinate ?? _defaultCenter;
+    final mapCenter = _currentLocation ?? selectedCoordinate ?? _defaultCenter;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final userCoordinate = selectedCoordinate == null
-        ? null
-        : _userCoordinateNear(selectedCoordinate);
+    final userCoordinate = _currentLocation;
 
     return Scaffold(
       body: Stack(
@@ -4489,7 +4500,7 @@ class _MapScreenState extends State<MapScreen> {
             child: _MapCircleButton(
               icon: HugeIcons.strokeRoundedGps01,
               dark: true,
-              onTap: _centerSelectedProperty,
+              onTap: _ensureLocationPermission,
             ),
           ),
           if (selectedProperty != null)
@@ -4590,10 +4601,7 @@ class _MapPropertyMarker extends StatelessWidget {
                 ],
               ),
               child: ClipOval(
-                child: Hero(
-                  tag: property.heroTag,
-                  child: _PropertyImage(property: property, fit: BoxFit.cover),
-                ),
+                child: _PropertyImage(property: property, fit: BoxFit.cover),
               ),
             ),
             Container(
