@@ -3330,32 +3330,7 @@ class LeadsScreen extends StatelessWidget {
         const SizedBox(height: 14),
         const _SegmentPills(labels: ['All', 'Hot', 'New', 'Visit', 'Won']),
         const SizedBox(height: 14),
-        _LeadCard(
-          name: 'Rahul Sharma',
-          source: '36 Acre',
-          budget: '₹75L - ₹1.2Cr',
-          status: 'Hot',
-          color: AppColors.mint,
-          onTap: () {},
-        ),
-        const SizedBox(height: 10),
-        _LeadCard(
-          name: 'Priya Mehta',
-          source: 'Instagram',
-          budget: '3BHK · Gurgaon',
-          status: 'New',
-          color: AppColors.panel,
-          onTap: () {},
-        ),
-        const SizedBox(height: 10),
-        _LeadCard(
-          name: 'Aman Verma',
-          source: 'MagicBricks',
-          budget: 'Plot · South Delhi',
-          status: 'Follow-up',
-          color: AppColors.panel,
-          onTap: () {},
-        ),
+        const _LeadLeaderboardList(),
       ],
     );
   }
@@ -5652,73 +5627,188 @@ class _SegmentPills extends StatelessWidget {
   }
 }
 
-class _LeadCard extends StatelessWidget {
-  const _LeadCard({
+class _LeadLeaderboardList extends StatelessWidget {
+  const _LeadLeaderboardList();
+
+  static const _leads = [
+    _LeadLeaderboardItem(
+      name: 'Rahul Sharma',
+      detail: '36 Acre · ₹75L - ₹1.2Cr',
+      status: 'Hot',
+      statusColor: Color(0xFFDDFBE9),
+      avatar:
+          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=90',
+    ),
+    _LeadLeaderboardItem(
+      name: 'Priya Mehta',
+      detail: 'Instagram · 3BHK · Gurgaon',
+      status: 'New',
+      statusColor: Color(0xFFFFE6B8),
+      avatar:
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=90',
+    ),
+    _LeadLeaderboardItem(
+      name: 'Aman Verma',
+      detail: 'MagicBricks · Plot · South Delhi',
+      status: 'Follow-up',
+      statusColor: Color(0xFFE6E0FF),
+      avatar:
+          'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=90',
+    ),
+    _LeadLeaderboardItem(
+      name: 'Neha Kapoor',
+      detail: 'Website · Villa · Noida Expressway',
+      status: 'Visit',
+      statusColor: Color(0xFFDDF1FF),
+      avatar:
+          'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=160&q=90',
+    ),
+    _LeadLeaderboardItem(
+      name: 'Kabir Sethi',
+      detail: 'Referral · Commercial · Golf Course Road',
+      status: 'Warm',
+      statusColor: Color(0xFFE4F4D6),
+      avatar:
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=90',
+    ),
+    _LeadLeaderboardItem(
+      name: 'Mila Lam',
+      detail: 'Walk-in · Apartment · Sector 150',
+      status: 'Won',
+      statusColor: Color(0xFFFFF0B8),
+      avatar:
+          'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=160&q=90',
+    ),
+    _LeadLeaderboardItem(
+      name: 'Alex P.',
+      detail: 'Facebook · Rental · Coronado',
+      status: 'Cold',
+      statusColor: Color(0xFFFFD8D2),
+      avatar:
+          'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=160&q=90',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF3),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFC7BDA9).withValues(alpha: 0.18),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < _leads.length; index++) ...[
+            _LeadLeaderboardRow(item: _leads[index]),
+            if (index != _leads.length - 1)
+              Padding(
+                padding: const EdgeInsets.only(left: 74),
+                child: Divider(
+                  height: 1,
+                  color: AppColors.ink.withValues(alpha: 0.12),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LeadLeaderboardItem {
+  const _LeadLeaderboardItem({
     required this.name,
-    required this.source,
-    required this.budget,
+    required this.detail,
     required this.status,
-    required this.color,
-    required this.onTap,
+    required this.statusColor,
+    required this.avatar,
   });
 
   final String name;
-  final String source;
-  final String budget;
+  final String detail;
   final String status;
-  final Color color;
-  final VoidCallback onTap;
+  final Color statusColor;
+  final String avatar;
+}
+
+class _LeadLeaderboardRow extends StatelessWidget {
+  const _LeadLeaderboardRow({required this.item});
+
+  final _LeadLeaderboardItem item;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: _GlassCard(
-        padding: const EdgeInsets.all(16),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
         child: Row(
           children: [
             Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text(
-                name.characters.first,
-                style: const TextStyle(
-                  fontFamily: AppFonts.cabinet,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.ink,
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                image: DecorationImage(
+                  image: NetworkImage(item.avatar),
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
-            const SizedBox(width: 13),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    name,
+                    item.name,
                     style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
                       color: AppColors.ink,
-                      letterSpacing: -0.4,
+                      letterSpacing: -0.25,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
-                    '$source · $budget',
+                    item.detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
                       color: AppColors.muted,
-                      letterSpacing: -0.2,
                     ),
                   ),
                 ],
               ),
             ),
-            _SmallStatusPill(text: status),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: item.statusColor,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                item.status,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.ink.withValues(alpha: 0.78),
+                ),
+              ),
+            ),
           ],
         ),
       ),
