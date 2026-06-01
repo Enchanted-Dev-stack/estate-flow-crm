@@ -85,6 +85,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(FlutterMap), findsOneWidget);
+    expect(
+      tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .options
+          .initialCameraFit,
+      isNotNull,
+    );
     expect(find.text('Location detail'), findsNothing);
     expect(find.text('1 Hospital'), findsNothing);
     expect(find.text('2 Gas stations'), findsNothing);
@@ -93,6 +100,15 @@ void main() {
         (widget) => widget.runtimeType.toString() == '_MapCircleButton',
       ),
       findsNWidgets(2),
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Hero &&
+            widget.tag.toString().startsWith('property-image-'),
+        skipOffstage: false,
+      ),
+      findsWidgets,
     );
     expect(
       find.byWidgetPredicate(
@@ -105,8 +121,10 @@ void main() {
       find
           .byWidgetPredicate(
             (widget) => widget.runtimeType.toString() == '_MapPropertyMarker',
+            skipOffstage: false,
           )
           .first,
+      warnIfMissed: false,
     );
     await tester.pumpAndSettle();
 

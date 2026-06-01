@@ -4236,10 +4236,11 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   static const _defaultCenter = LatLng(32.6859, -117.1831);
 
   final MapController _mapController = MapController();
+  late final AnimationController _mapAnimationController;
   int? _selectedIndex;
   LatLng? _currentLocation;
 
@@ -4253,9 +4254,20 @@ class _MapScreenState extends State<MapScreen> {
     )];
   }
 
+  List<LatLng> get _propertyCoordinates {
+    return [
+      for (final property in widget.properties)
+        if (_coordinateFor(property) != null) _coordinateFor(property)!,
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
+    _mapAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureLocationPermission();
     });
@@ -4263,6 +4275,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _mapAnimationController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -4280,7 +4293,7 @@ class _MapScreenState extends State<MapScreen> {
   void _selectProperty(int index) {
     setState(() => _selectedIndex = index);
     final coordinate = _coordinateFor(widget.properties[index]);
-    if (coordinate != null) _mapController.move(coordinate, 14);
+    if (coordinate != null) _animateMapTo(coordinate, 14);
   }
 
   Future<void> _ensureLocationPermission() async {
@@ -4306,6 +4319,10 @@ class _MapScreenState extends State<MapScreen> {
       }
       if (requestedStatus.isPermanentlyDenied) {
         _showLocationSettingsMessage();
+        return;
+      }
+      if (requestedStatus.isDenied || requestedStatus.isRestricted) {
+        _showLocationDeniedMessage();
       }
     } catch (_) {
       // Permission plugins are unavailable in widget tests and some desktop runs.
@@ -4319,6 +4336,14 @@ class _MapScreenState extends State<MapScreen> {
           'Enable location permission to use nearby map tools',
         ),
         action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+      ),
+    );
+  }
+
+  void _showLocationDeniedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Location permission is needed to center the map'),
       ),
     );
   }
@@ -4346,13 +4371,45 @@ class _MapScreenState extends State<MapScreen> {
 
       final coordinate = LatLng(position.latitude, position.longitude);
       setState(() => _currentLocation = coordinate);
-      _mapController.move(coordinate, 14);
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      _animateMapTo(coordinate, 15);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Unable to get your current location')),
       );
     }
+  }
+
+  void _animateMapTo(LatLng target, double targetZoom) {
+    final startCenter = _mapController.camera.center;
+    final startZoom = _mapController.camera.zoom;
+
+    _mapAnimationController.stop();
+    _mapAnimationController.reset();
+    void listener() {
+      final progress = Curves.easeOutCubic.transform(
+        _mapAnimationController.value,
+      );
+      final latitude = lerpDouble(
+        startCenter.latitude,
+        target.latitude,
+        progress,
+      )!;
+      final longitude = lerpDouble(
+        startCenter.longitude,
+        target.longitude,
+        progress,
+      )!;
+      final zoom = lerpDouble(startZoom, targetZoom, progress)!;
+      _mapController.move(LatLng(latitude, longitude), zoom);
+    }
+
+    _mapAnimationController.addListener(listener);
+    _mapAnimationController.forward().whenCompleteOrCancel(() {
+      _mapAnimationController.removeListener(listener);
+    });
   }
 
   Future<void> _openDetails(PropertyListing property) async {
@@ -4380,6 +4437,7 @@ class _MapScreenState extends State<MapScreen> {
         ? null
         : _coordinateFor(selectedProperty);
     final mapCenter = _currentLocation ?? selectedCoordinate ?? _defaultCenter;
+    final propertyCoordinates = _propertyCoordinates;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final userCoordinate = _currentLocation;
 
@@ -4392,7 +4450,15 @@ class _MapScreenState extends State<MapScreen> {
               options: MapOptions(
                 initialCenter: mapCenter,
                 initialZoom: 14,
-                minZoom: 3,
+                initialCameraFit: propertyCoordinates.isEmpty
+                    ? null
+                    : CameraFit.coordinates(
+                        coordinates: propertyCoordinates,
+                        padding: const EdgeInsets.fromLTRB(46, 94, 46, 170),
+                        maxZoom: 14,
+                        minZoom: 1,
+                      ),
+                minZoom: 1,
                 maxZoom: 18,
                 interactionOptions: const InteractionOptions(
                   flags:
@@ -4601,7 +4667,26 @@ class _MapPropertyMarker extends StatelessWidget {
                 ],
               ),
               child: ClipOval(
-                child: _PropertyImage(property: property, fit: BoxFit.cover),
+                child: Hero(
+                  tag: property.heroTag,
+                  flightShuttleBuilder:
+                      (
+                        flightContext,
+                        animation,
+                        flightDirection,
+                        fromHeroContext,
+                        toHeroContext,
+                      ) {
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: _PropertyImage(
+                            property: property,
+                            fit: BoxFit.cover,
+                          ),
+                        );
+                      },
+                  child: _PropertyImage(property: property, fit: BoxFit.cover),
+                ),
               ),
             ),
             Container(
