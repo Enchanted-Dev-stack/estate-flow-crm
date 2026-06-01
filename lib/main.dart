@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'dart:io';
 import 'dart:math' as math;
@@ -9,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -69,6 +71,17 @@ class AppFonts {
   static const cabinet = 'CabinetGrotesk';
 }
 
+final _mapTileCache = BuiltInMapCachingProvider.getOrCreateInstance(
+  maxCacheSize: 300 * 1024 * 1024,
+  overrideFreshAge: const Duration(days: 30),
+);
+
+final _mapTileProvider = NetworkTileProvider(
+  cachingProvider: _mapTileCache,
+  abortObsoleteRequests: false,
+  silenceExceptions: true,
+);
+
 class CrmShell extends StatefulWidget {
   const CrmShell({super.key});
 
@@ -79,6 +92,9 @@ class CrmShell extends StatefulWidget {
 class _CrmShellState extends State<CrmShell> {
   int _selectedIndex = 0;
   late List<PropertyListing> _properties = List.of(_initialProperties);
+  LatLng? _warmupLocation;
+  Timer? _warmupClearTimer;
+  bool _showLocationWarmupPrompt = false;
 
   static const _initialProperties = [
     PropertyListing(
@@ -136,6 +152,100 @@ class _CrmShellState extends State<CrmShell> {
     _NavItem('Follow-ups', HugeIcons.strokeRoundedCalendar03),
     _NavItem('More', HugeIcons.strokeRoundedMenuCircle),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prepareMapTileWarmup();
+    });
+  }
+
+  @override
+  void dispose() {
+    _warmupClearTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _prepareMapTileWarmup() async {
+    try {
+      final status = await Permission.locationWhenInUse.status;
+      if (!mounted) return;
+
+      if (status.isGranted || status.isLimited) {
+        await _warmTilesNearDevice();
+        return;
+      }
+
+      if (status.isDenied || status.isRestricted) {
+        setState(() => _showLocationWarmupPrompt = true);
+      }
+    } catch (_) {
+      // Permission plugins are unavailable in widget tests and some desktop runs.
+    }
+  }
+
+  Future<void> _requestLocationWarmup() async {
+    try {
+      final status = await Permission.locationWhenInUse.request();
+      if (!mounted) return;
+
+      if (status.isGranted || status.isLimited) {
+        setState(() => _showLocationWarmupPrompt = false);
+        await _warmTilesNearDevice();
+        return;
+      }
+
+      if (status.isPermanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Enable location in Settings to preload maps'),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: openAppSettings,
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to request location permission')),
+      );
+    }
+  }
+
+  Future<void> _warmTilesNearDevice() async {
+    try {
+      final servicesEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted || !servicesEnabled) return;
+
+      final position =
+          await Geolocator.getLastKnownPosition() ??
+          await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 6),
+            ),
+          );
+      if (!mounted) return;
+
+      setState(() {
+        _warmupLocation = LatLng(position.latitude, position.longitude);
+      });
+      _scheduleWarmupCleanup(_warmupLocation!);
+    } catch (_) {
+      // Background tile warmup is best-effort and should not interrupt the CRM.
+    }
+  }
+
+  void _scheduleWarmupCleanup(LatLng warmupLocation) {
+    _warmupClearTimer?.cancel();
+    _warmupClearTimer = Timer(const Duration(seconds: 6), () {
+      if (!mounted || _warmupLocation != warmupLocation) return;
+      setState(() => _warmupLocation = null);
+    });
+  }
 
   Future<void> _openAddProperty() async {
     final property = await Navigator.of(context).push<PropertyListing>(
@@ -207,8 +317,13 @@ class _CrmShellState extends State<CrmShell> {
 
   @override
   Widget build(BuildContext context) {
+    final warmupLocation = _warmupLocation;
     final screens = [
-      DashboardScreen(onAddProperty: _openAddProperty),
+      DashboardScreen(
+        onAddProperty: _openAddProperty,
+        showLocationWarmupPrompt: _showLocationWarmupPrompt,
+        onEnableLocationWarmup: _requestLocationWarmup,
+      ),
       LeadsScreen(onAddProperty: _openAddProperty),
       PropertiesScreen(
         properties: _properties,
@@ -230,6 +345,21 @@ class _CrmShellState extends State<CrmShell> {
         bottom: false,
         child: Stack(
           children: [
+            if (warmupLocation != null)
+              _MapTileWarmupLayer(
+                userLocation: warmupLocation,
+                propertyCoordinates: _properties
+                    .map((property) {
+                      final latitude = property.latitude;
+                      final longitude = property.longitude;
+                      return latitude == null || longitude == null
+                          ? null
+                          : LatLng(latitude, longitude);
+                    })
+                    .whereType<LatLng>()
+                    .take(8)
+                    .toList(),
+              ),
             Positioned.fill(child: screens[_selectedIndex]),
             Positioned(
               bottom: 12,
@@ -3336,9 +3466,16 @@ class _AddPropertyActions extends StatelessWidget {
 }
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({this.onAddProperty, super.key});
+  const DashboardScreen({
+    this.onAddProperty,
+    this.showLocationWarmupPrompt = false,
+    this.onEnableLocationWarmup,
+    super.key,
+  });
 
   final VoidCallback? onAddProperty;
+  final bool showLocationWarmupPrompt;
+  final VoidCallback? onEnableLocationWarmup;
 
   @override
   Widget build(BuildContext context) {
@@ -3347,6 +3484,10 @@ class DashboardScreen extends StatelessWidget {
       subtitle: 'Today\'s real estate command center',
       onAddProperty: onAddProperty,
       children: [
+        if (showLocationWarmupPrompt) ...[
+          _LocationWarmupPrompt(onEnable: onEnableLocationWarmup),
+          const SizedBox(height: 12),
+        ],
         const _HeroMetricCard(),
         const SizedBox(height: 12),
         const Row(
@@ -3407,6 +3548,71 @@ class DashboardScreen extends StatelessWidget {
           meta: 'Priya Mehta · Instagram',
         ),
       ],
+    );
+  }
+}
+
+class _LocationWarmupPrompt extends StatelessWidget {
+  const _LocationWarmupPrompt({required this.onEnable});
+
+  final VoidCallback? onEnable;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      child: Row(
+        children: [
+          const _SoftIcon(
+            icon: HugeIcons.strokeRoundedLocation01,
+            size: 48,
+            iconSize: 22,
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enable faster maps',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.ink,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Preload nearby map tiles before opening Map.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: onEnable,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.ink,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 38),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(19),
+              ),
+            ),
+            child: const Text(
+              'Enable',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4236,6 +4442,76 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
+class _CachedOsmTileLayer extends StatelessWidget {
+  const _CachedOsmTileLayer();
+
+  @override
+  Widget build(BuildContext context) {
+    return TileLayer(
+      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'estateflow_crm',
+      tileProvider: _mapTileProvider,
+      keepBuffer: 4,
+      panBuffer: 2,
+      tileBuilder: (context, tileWidget, tile) {
+        return ColoredBox(color: const Color(0xFFE7ECEC), child: tileWidget);
+      },
+    );
+  }
+}
+
+class _MapTileWarmupLayer extends StatelessWidget {
+  const _MapTileWarmupLayer({
+    required this.userLocation,
+    required this.propertyCoordinates,
+  });
+
+  final LatLng userLocation;
+  final List<LatLng> propertyCoordinates;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: 0.01,
+          child: Stack(
+            children: [
+              FlutterMap(
+                options: MapOptions(
+                  initialCenter: userLocation,
+                  initialZoom: 15,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.none,
+                  ),
+                ),
+                children: const [_CachedOsmTileLayer()],
+              ),
+              if (propertyCoordinates.isNotEmpty)
+                FlutterMap(
+                  options: MapOptions(
+                    initialCenter: propertyCoordinates.first,
+                    initialZoom: 12,
+                    initialCameraFit: CameraFit.coordinates(
+                      coordinates: propertyCoordinates,
+                      padding: const EdgeInsets.all(48),
+                      maxZoom: 12,
+                      minZoom: 1,
+                    ),
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.none,
+                    ),
+                  ),
+                  children: const [_CachedOsmTileLayer()],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   static const _defaultCenter = LatLng(32.6859, -117.1831);
 
@@ -4266,7 +4542,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     super.initState();
     _mapAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 720),
+      duration: const Duration(milliseconds: 1500),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureLocationPermission();
@@ -4361,6 +4637,23 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         return;
       }
 
+      final lastKnownPosition = await Geolocator.getLastKnownPosition();
+      var animatedToLastKnownLocation = false;
+      if (lastKnownPosition != null) {
+        final coordinate = LatLng(
+          lastKnownPosition.latitude,
+          lastKnownPosition.longitude,
+        );
+        setState(() => _currentLocation = coordinate);
+        await Future.wait([
+          _precacheOsmTilesAround(coordinate),
+          Future<void>.delayed(const Duration(milliseconds: 800)),
+        ]);
+        if (!mounted) return;
+        _animateMapTo(coordinate, 15);
+        animatedToLastKnownLocation = true;
+      }
+
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -4370,8 +4663,28 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       if (!mounted) return;
 
       final coordinate = LatLng(position.latitude, position.longitude);
+      if (animatedToLastKnownLocation) {
+        setState(() => _currentLocation = coordinate);
+        if (_isMeaningfullyDifferent(
+          _mapController.camera.center,
+          coordinate,
+        )) {
+          await Future.wait([
+            _precacheOsmTilesAround(coordinate),
+            Future<void>.delayed(const Duration(milliseconds: 800)),
+          ]);
+          if (!mounted) return;
+          _animateMapTo(coordinate, 15);
+        }
+        return;
+      }
+
       setState(() => _currentLocation = coordinate);
-      await Future<void>.delayed(const Duration(milliseconds: 800));
+
+      await Future.wait([
+        _precacheOsmTilesAround(coordinate),
+        Future<void>.delayed(const Duration(milliseconds: 800)),
+      ]);
       if (!mounted) return;
       _animateMapTo(coordinate, 15);
     } catch (_) {
@@ -4380,6 +4693,85 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         const SnackBar(content: Text('Unable to get your current location')),
       );
     }
+  }
+
+  bool _isMeaningfullyDifferent(LatLng a, LatLng b) {
+    return Geolocator.distanceBetween(
+          a.latitude,
+          a.longitude,
+          b.latitude,
+          b.longitude,
+        ) >
+        100;
+  }
+
+  Future<void> _precacheOsmTilesAround(LatLng coordinate) async {
+    final futures = <Future<void>>[];
+    for (final zoom in const [14, 15]) {
+      final tile = _osmTileFor(coordinate, zoom);
+      for (var xOffset = -1; xOffset <= 1; xOffset++) {
+        for (var yOffset = -1; yOffset <= 1; yOffset++) {
+          final x = tile.x + xOffset;
+          final y = tile.y + yOffset;
+          if (x < 0 || y < 0) continue;
+          futures.add(_cacheOsmTile(zoom: zoom, x: x, y: y));
+        }
+      }
+    }
+
+    await Future.any([
+      Future.wait(futures),
+      Future<void>.delayed(const Duration(milliseconds: 1200)),
+    ]);
+  }
+
+  Future<void> _cacheOsmTile({
+    required int zoom,
+    required int x,
+    required int y,
+  }) async {
+    final url = 'https://tile.openstreetmap.org/$zoom/$x/$y.png';
+    try {
+      final cachedTile = await _mapTileCache.getTile(url);
+      if (cachedTile != null && !cachedTile.metadata.isStale) return;
+
+      final response = await http
+          .get(Uri.parse(url), headers: const {'User-Agent': 'estateflow_crm'})
+          .timeout(const Duration(milliseconds: 1100));
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) return;
+
+      await _mapTileCache.putTile(
+        url: url,
+        bytes: response.bodyBytes,
+        metadata: CachedMapTileMetadata.fromHttpHeaders(
+          response.headers,
+          fallbackFreshnessAge: const Duration(days: 30),
+        ),
+      );
+
+      if (!mounted) return;
+      await precacheImage(MemoryImage(response.bodyBytes), context);
+    } catch (_) {
+      // Tile prefetch is best-effort; the visible map can still request it.
+    }
+  }
+
+  ({int x, int y}) _osmTileFor(LatLng coordinate, int zoom) {
+    final scale = math.pow(2, zoom).toDouble();
+    final latitudeRadians = coordinate.latitude * math.pi / 180;
+    final x = ((coordinate.longitude + 180) / 360 * scale).floor();
+    final y =
+        ((1 -
+                    math.log(
+                          math.tan(latitudeRadians) +
+                              (1 / math.cos(latitudeRadians)),
+                        ) /
+                        math.pi) /
+                2 *
+                scale)
+            .floor();
+
+    return (x: x, y: y);
   }
 
   void _animateMapTo(LatLng target, double targetZoom) {
@@ -4445,94 +4837,98 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       body: Stack(
         children: [
           Positioned.fill(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: mapCenter,
-                initialZoom: 14,
-                initialCameraFit: propertyCoordinates.isEmpty
-                    ? null
-                    : CameraFit.coordinates(
-                        coordinates: propertyCoordinates,
-                        padding: const EdgeInsets.fromLTRB(46, 94, 46, 170),
-                        maxZoom: 14,
-                        minZoom: 1,
-                      ),
-                minZoom: 1,
-                maxZoom: 18,
-                interactionOptions: const InteractionOptions(
-                  flags:
-                      InteractiveFlag.drag |
-                      InteractiveFlag.pinchZoom |
-                      InteractiveFlag.doubleTapZoom,
-                ),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'estateflow_crm',
-                ),
-                if (selectedCoordinate != null)
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: selectedCoordinate,
-                        radius: 1150,
-                        useRadiusInMeter: true,
-                        color: const Color(0xFF698797).withValues(alpha: 0.18),
-                        borderColor: const Color(
-                          0xFF698797,
-                        ).withValues(alpha: 0.18),
-                        borderStrokeWidth: 1,
-                      ),
-                    ],
-                  ),
-                if (selectedCoordinate != null && userCoordinate != null)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: [userCoordinate, selectedCoordinate],
-                        color: const Color(0xFF77BF43).withValues(alpha: 0.72),
-                        strokeWidth: 5,
-                      ),
-                    ],
-                  ),
-                MarkerLayer(
-                  markers: [
-                    if (userCoordinate != null)
-                      Marker(
-                        point: userCoordinate,
-                        width: 48,
-                        height: 48,
-                        child: const _MapUserMarker(),
-                      ),
-                    for (
-                      var index = 0;
-                      index < widget.properties.length;
-                      index++
-                    )
-                      if (_coordinateFor(widget.properties[index]) != null)
-                        Marker(
-                          point: _coordinateFor(widget.properties[index])!,
-                          width: 62,
-                          height: 70,
-                          child: _MapPropertyMarker(
-                            property: widget.properties[index],
-                            selected:
-                                selectedProperty != null &&
-                                widget.properties[index].id ==
-                                    selectedProperty.id,
-                            onTap: () => _selectProperty(index),
-                          ),
+            child: ColoredBox(
+              color: const Color(0xFFE7ECEC),
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: mapCenter,
+                  initialZoom: 14,
+                  initialCameraFit: propertyCoordinates.isEmpty
+                      ? null
+                      : CameraFit.coordinates(
+                          coordinates: propertyCoordinates,
+                          padding: const EdgeInsets.fromLTRB(46, 94, 46, 170),
+                          maxZoom: 14,
+                          minZoom: 1,
                         ),
-                  ],
+                  minZoom: 1,
+                  maxZoom: 18,
+                  interactionOptions: const InteractionOptions(
+                    flags:
+                        InteractiveFlag.drag |
+                        InteractiveFlag.pinchZoom |
+                        InteractiveFlag.doubleTapZoom,
+                  ),
                 ),
-                RichAttributionWidget(
-                  attributions: [
-                    TextSourceAttribution('OpenStreetMap contributors'),
-                  ],
-                ),
-              ],
+                children: [
+                  const _CachedOsmTileLayer(),
+                  if (selectedCoordinate != null)
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: selectedCoordinate,
+                          radius: 1150,
+                          useRadiusInMeter: true,
+                          color: const Color(
+                            0xFF698797,
+                          ).withValues(alpha: 0.18),
+                          borderColor: const Color(
+                            0xFF698797,
+                          ).withValues(alpha: 0.18),
+                          borderStrokeWidth: 1,
+                        ),
+                      ],
+                    ),
+                  if (selectedCoordinate != null && userCoordinate != null)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: [userCoordinate, selectedCoordinate],
+                          color: const Color(
+                            0xFF77BF43,
+                          ).withValues(alpha: 0.72),
+                          strokeWidth: 5,
+                        ),
+                      ],
+                    ),
+                  MarkerLayer(
+                    markers: [
+                      if (userCoordinate != null)
+                        Marker(
+                          point: userCoordinate,
+                          width: 48,
+                          height: 48,
+                          child: const _MapUserMarker(),
+                        ),
+                      for (
+                        var index = 0;
+                        index < widget.properties.length;
+                        index++
+                      )
+                        if (_coordinateFor(widget.properties[index]) != null)
+                          Marker(
+                            point: _coordinateFor(widget.properties[index])!,
+                            width: 62,
+                            height: 70,
+                            child: _MapPropertyMarker(
+                              property: widget.properties[index],
+                              selected:
+                                  selectedProperty != null &&
+                                  widget.properties[index].id ==
+                                      selectedProperty.id,
+                              onTap: () => _selectProperty(index),
+                            ),
+                          ),
+                    ],
+                  ),
+                  RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution('OpenStreetMap contributors'),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           Positioned.fill(
